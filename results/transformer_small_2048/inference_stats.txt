@@ -1,0 +1,4 @@
+Architecture: transformer_small_2048
+Total Trainable Parameters: 92,370,432
+Total Training Wall Time (Sec): 11094.79
+Inference Tokens/Sec: 113.37

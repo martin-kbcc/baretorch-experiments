@@ -1,0 +1,242 @@
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: CBKC_BASE_2048
+================================================================================
+
+Architecture: cbkc_base_2048
+Total Trainable Parameters: 198,867,616
+Total Training Wall Time (Sec): 54266.66
+Inference Tokens/Sec: 29.35
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: CBKC_SMALL_2048
+================================================================================
+
+Architecture: cbkc_small_2048
+Total Trainable Parameters: 98,184,768
+Total Training Wall Time (Sec): 26394.23
+Inference Tokens/Sec: 37.29
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: CBKC_TINY_2048
+================================================================================
+
+Architecture: cbkc_tiny_2048
+Total Trainable Parameters: 33,704,064
+Total Training Wall Time (Sec): 8010.59
+Inference Tokens/Sec: 56.77
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: CCRS_SMALL_2048
+================================================================================
+
+Architecture: ccrs_small_2048
+Total Trainable Parameters: 97,187,520
+Total Training Wall Time (Sec): 14306.86
+Inference Tokens/Sec: 140.62
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: CCRS_TINY_2048
+================================================================================
+
+Architecture: ccrs_tiny_2048
+Total Trainable Parameters: 33,403,904
+Total Training Wall Time (Sec): 5638.36
+Inference Tokens/Sec: 202.70
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: CKTS_SMALL_2048
+================================================================================
+
+Architecture: ckts_small_2048
+Total Trainable Parameters: 109,364,688
+Total Training Wall Time (Sec): 20890.10
+Inference Tokens/Sec: 82.22
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: CKTS_TINY_2048
+================================================================================
+
+Architecture: ckts_tiny_2048
+Total Trainable Parameters: 35,472,256
+Total Training Wall Time (Sec): 6357.22
+Inference Tokens/Sec: 119.80
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: COFE_SMALL_2048
+================================================================================
+
+Architecture: cofe_small_2048
+Total Trainable Parameters: 100,148,832
+Total Training Wall Time (Sec): 19007.20
+Inference Tokens/Sec: 91.15
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: COFE_TINY_2048
+================================================================================
+
+Architecture: cofe_tiny_2048
+Total Trainable Parameters: 33,932,288
+Total Training Wall Time (Sec): 5968.18
+Inference Tokens/Sec: 134.52
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: CS_LRAD_BASE_2048
+================================================================================
+
+Architecture: cs_lrad_base_2048
+Total Trainable Parameters: 208,305,856
+Total Training Wall Time (Sec): 27223.50
+Inference Tokens/Sec: 96.23
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: CS_LRAD_SMALL_2048
+================================================================================
+
+Architecture: cs_lrad_small_2048
+Total Trainable Parameters: 102,004,608
+Total Training Wall Time (Sec): 12342.54
+Inference Tokens/Sec: 113.41
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: CS_LRAD_TINY_2048
+================================================================================
+
+Architecture: cs_lrad_tiny_2048
+Total Trainable Parameters: 34,452,480
+Total Training Wall Time (Sec): 5507.01
+Inference Tokens/Sec: 164.97
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: GDN2_BASE_2048
+================================================================================
+
+Architecture: gdn2_base_2048
+Total Trainable Parameters: 203,548,260
+Total Training Wall Time (Sec): 29983.23
+Inference Tokens/Sec: 53.66
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: GDN2_SMALL_2048
+================================================================================
+
+Architecture: gdn2_small_2048
+Total Trainable Parameters: 101,919,296
+Total Training Wall Time (Sec): 16696.98
+Inference Tokens/Sec: 73.69
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: GDN2_TINY_2048
+================================================================================
+
+Architecture: gdn2_tiny_2048
+Total Trainable Parameters: 39,163,680
+Total Training Wall Time (Sec): 7244.08
+Inference Tokens/Sec: 75.16
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: GLA_SMALL_2048
+================================================================================
+
+Architecture: gla_small_2048
+Total Trainable Parameters: 97,240,320
+Total Training Wall Time (Sec): 12543.51
+Inference Tokens/Sec: 78.28
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: GLA_TINY_2048
+================================================================================
+
+Architecture: gla_tiny_2048
+Total Trainable Parameters: 33,388,800
+Total Training Wall Time (Sec): 4888.46
+Inference Tokens/Sec: 117.80
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: MAMBA3_SMALL_2048
+================================================================================
+
+Architecture: mamba3_small_2048
+Total Trainable Parameters: 87,486,208
+Total Training Wall Time (Sec): 9663.16
+Inference Tokens/Sec: 90.98
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: MAMBA3_TINY_2048
+================================================================================
+
+Architecture: mamba3_tiny_2048
+Total Trainable Parameters: 35,044,224
+Total Training Wall Time (Sec): 5646.63
+Inference Tokens/Sec: 103.12
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: TRANSFORMER_BASE_2048
+================================================================================
+
+Architecture: transformer_base_2048
+Total Trainable Parameters: 199,903,488
+Total Training Wall Time (Sec): 27937.40
+Inference Tokens/Sec: 87.02
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: TRANSFORMER_SMALL_2048
+================================================================================
+
+Architecture: transformer_small_2048
+Total Trainable Parameters: 92,370,432
+Total Training Wall Time (Sec): 11094.79
+Inference Tokens/Sec: 113.37
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: TRANSFORMER_TINY_2048
+================================================================================
+
+Architecture: transformer_tiny_2048
+Total Trainable Parameters: 32,551,680
+Total Training Wall Time (Sec): 5043.19
+Inference Tokens/Sec: 166.57
+
+

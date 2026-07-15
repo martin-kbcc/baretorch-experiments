@@ -1,0 +1,4 @@
+Architecture: ckts_small_2048
+Total Trainable Parameters: 109,364,688
+Total Training Wall Time (Sec): 20890.10
+Inference Tokens/Sec: 82.22

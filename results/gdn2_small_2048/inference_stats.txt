@@ -1,0 +1,4 @@
+Architecture: gdn2_small_2048
+Total Trainable Parameters: 101,919,296
+Total Training Wall Time (Sec): 16696.98
+Inference Tokens/Sec: 73.69

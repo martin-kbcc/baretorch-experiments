@@ -1,0 +1,4 @@
+Architecture: ccrs_small_2048
+Total Trainable Parameters: 97,187,520
+Total Training Wall Time (Sec): 14306.86
+Inference Tokens/Sec: 140.62

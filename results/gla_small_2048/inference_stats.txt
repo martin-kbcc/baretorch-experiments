@@ -1,0 +1,4 @@
+Architecture: gla_small_2048
+Total Trainable Parameters: 97,240,320
+Total Training Wall Time (Sec): 12543.51
+Inference Tokens/Sec: 78.28

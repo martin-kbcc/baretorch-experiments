@@ -1,0 +1,4 @@
+Architecture: cbkc_small_2048
+Total Trainable Parameters: 98,184,768
+Total Training Wall Time (Sec): 26394.23
+Inference Tokens/Sec: 37.29

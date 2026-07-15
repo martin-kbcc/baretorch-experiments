@@ -1,0 +1,20 @@
+# --- Large Model Files & Data ---
+arc_agi_2/
+checkpoints/
+processed_wiki_dataset_2048/
+*.pt
+*.pth
+*.bin
+*.safetensors
+
+# --- Python & System Caches ---
+__pycache__/
+*.py[cod]
+*$py.class
+.DS_Store
+.env
+venv/
+env/
+
+# --- Tensorboard Caches (while keeping your runner scripts inside runs/) ---
+*.tfevents.*

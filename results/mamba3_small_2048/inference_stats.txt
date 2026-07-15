@@ -1,0 +1,4 @@
+Architecture: mamba3_small_2048
+Total Trainable Parameters: 87,486,208
+Total Training Wall Time (Sec): 9663.16
+Inference Tokens/Sec: 90.98

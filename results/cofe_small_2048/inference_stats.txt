@@ -1,0 +1,4 @@
+Architecture: cofe_small_2048
+Total Trainable Parameters: 100,148,832
+Total Training Wall Time (Sec): 19007.20
+Inference Tokens/Sec: 91.15

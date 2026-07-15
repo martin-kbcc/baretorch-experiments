@@ -1,0 +1,4 @@
+Architecture: cs_lrad_base_2048
+Total Trainable Parameters: 208,305,856
+Total Training Wall Time (Sec): 27223.50
+Inference Tokens/Sec: 96.23
