@@ -16,7 +16,7 @@ def parse_args():
     
     # Core Experiment Setup
     parser.add_argument("--model", type=str, required=True, 
-                        choices=["transformer", "gla", "gdn2", "mamba3", "cs_lrad", "ccrs", "ckts", "cbkc", "cofe"])
+                    choices=["transformer", "gla", "gdn2", "mamba3", "cs_lrad", "cs_hde", "cs_dme", "cs_apex", "cs_nexus", "cs_delta_nexus", "cs_cann", "cofe", "ccrs", "ckts", "cbkc", "hdsa", "pg_rope", "rgda"])
     parser.add_argument("--model_version", type=str, default="tiny", choices=["tiny", "small", "base"],
                         help="Model sizing tier variant scale allocation tracking category")
     parser.add_argument("--seq_len", type=int, default=2048, help="Context sequence length tracking window")
@@ -106,7 +106,7 @@ def main():
     if args.model == "cs_lrad":
         model_kwargs["rank"] = args.rank
         model_kwargs["chunk_size"] = args.chunk_size  
-    elif args.model in ["ccrs", "ckts", "cbkc", "cofe"]:
+    elif args.model in ["cs_lrad", "cs_hde", "cs_dme", "cs_apex", "cs_nexus", "cs_delta_nexus", "cs_cann", "cofe", "ccrs", "ckts", "cbkc", "hdsa", "pg_rope", "rgda"]:
         model_kwargs["chunk_size"] = args.chunk_size  
     elif args.model == "transformer":
         model_kwargs["max_seq_len"] = max(args.seq_len, 4096)

@@ -101,7 +101,7 @@ class CausalTrainer:
         # -------------------------------------------------------------------------
         # ROUTE TRACK 1: Native Framework Decoupled Recurrent Step Engines
         # -------------------------------------------------------------------------
-        if self.cfg["model_type"] in ["transformer", "cs_lrad", "ccrs", "ckts", "cbkc", "cofe"]:
+        if self.cfg["model_type"] in ["transformer", "cs_lrad", "cs_hde", "cs_dme", "cs_apex", "cs_nexus", "cs_delta_nexus", "cs_cann", "cofe", "ccrs", "ckts", "cbkc", "hdsa", "pg_rope", "rgda"]:
             prompt_ids = torch.randint(0, 20000, (1, prompt_len), device=self.device)
             past_states = None
             

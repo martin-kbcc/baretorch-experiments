@@ -1,0 +1,4 @@
+Architecture: cs_hde_tiny_2048
+Total Trainable Parameters: 34,452,480
+Total Training Wall Time (Sec): 7987.42
+Inference Tokens/Sec: 140.60

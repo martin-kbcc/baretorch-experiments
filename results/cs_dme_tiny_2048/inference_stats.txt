@@ -1,0 +1,4 @@
+Architecture: cs_dme_tiny_2048
+Total Trainable Parameters: 34,943,880
+Total Training Wall Time (Sec): 6406.33
+Inference Tokens/Sec: 146.81

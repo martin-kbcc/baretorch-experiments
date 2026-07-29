@@ -1,0 +1,4 @@
+Architecture: cs_apex_tiny_2048
+Total Trainable Parameters: 35,468,160
+Total Training Wall Time (Sec): 5888.87
+Inference Tokens/Sec: 147.28
