@@ -99,6 +99,39 @@ Inference Tokens/Sec: 134.52
 
 
 ================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: CS_APEX_TINY_2048
+================================================================================
+
+Architecture: cs_apex_tiny_2048
+Total Trainable Parameters: 35,468,160
+Total Training Wall Time (Sec): 5888.87
+Inference Tokens/Sec: 147.28
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: CS_DME_TINY_2048
+================================================================================
+
+Architecture: cs_dme_tiny_2048
+Total Trainable Parameters: 34,943,880
+Total Training Wall Time (Sec): 6406.33
+Inference Tokens/Sec: 146.81
+
+
+
+================================================================================
+ MASTER EXPERIMENT LEDGER TARGET: CS_HDE_TINY_2048
+================================================================================
+
+Architecture: cs_hde_tiny_2048
+Total Trainable Parameters: 34,452,480
+Total Training Wall Time (Sec): 7987.42
+Inference Tokens/Sec: 140.60
+
+
+
+================================================================================
  MASTER EXPERIMENT LEDGER TARGET: CS_LRAD_BASE_2048
 ================================================================================
 
