@@ -7,6 +7,7 @@
 [![Paper PDF](https://img.shields.io/badge/Paper-PDF-red.svg)](paper.pdf)
 [![Production Framework](https://img.shields.io/badge/Production-BareTorch_Core-brightgreen.svg)](https://github.com/martin-kbcc/baretorch)
 [![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Model%20Rampage-yellow)](https://huggingface.co/model-rampage)
+[![Live ZeroGPU Playground](https://img.shields.io/badge/%F0%9F%A4%97%20Live_ZeroGPU_Demo-BareTorch_Playground-ff9d00?style=flat&logo=huggingface)](https://huggingface.co/spaces/martin-kb-rampage/BareTorch-Qwen3.5-Playground)
 
 Welcome to the official research and experimentation repository for **BareTorch**. This playground serves as our core mathematical laboratory, housing our 34-run exploratory pre-training sweep, 500M foundational model scale-up, Supervised Fine-Tuning (SFT) pipelines, hardware-level roofline analysis, and raw benchmark logs.
 
