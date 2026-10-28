@@ -1,9 +1,28 @@
 \documentclass[twocolumn,10pt]{article}
 \usepackage[utf8]{inputenc}
-\usepackage[margin=0.75in]{geometry}
+\usepackage[margin=0.68in]{geometry}
 \usepackage{amsmath,amssymb,amsfonts}
 \usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{microtype}
 \usepackage{hyperref}
+
+\setlength{\columnsep}{0.24in}
+\emergencystretch=2em
+\hbadness=10000
+\vbadness=10000
+
+% Allow full-width float tables at the end of the paper to stack cleanly
+\renewcommand{\topfraction}{0.95}
+\renewcommand{\bottomfraction}{0.95}
+\renewcommand{\textfraction}{0.05}
+\renewcommand{\floatpagefraction}{0.85}
+\renewcommand{\dbltopfraction}{0.95}
+\renewcommand{\dblfloatpagefraction}{0.85}
+\setcounter{topnumber}{5}
+\setcounter{bottomnumber}{5}
+\setcounter{totalnumber}{10}
+\setcounter{dbltopnumber}{5}
 
 \title{\textbf{BareTorch: Challenging State-of-The-Art Sequence Mixing Topologies via Kernel-Free, Pure GEMM-Compliant Architectures}}
 \author{\textbf{Martin Ignacio Kovacevic Buvinic}\\Independent Research / BareTorch Framework Laboratory}
@@ -14,100 +33,98 @@
 \maketitle
 
 \begin{abstract}
-Modern deep learning is deeply entangled with custom hardware lock-in, where the validation of alternative sub-quadratic sequence mixers (e.g., State Space Models, Gated Linear Attention) requires writing highly complex, unportable CUDA or Triton kernels to achieve operational wall-clock competitiveness. This architectural dependency acts as a major structural barrier to next-generation model exploration. In this work, we introduce the foundational principles of \textbf{BareTorch}, an open-source development ecosystem designed to build, scale, and evaluate competitive sequence architectures utilizing strictly pure, high-level PyTorch matrix multiplication (GEMM) equations. We formulate and evaluate ten custom sub-quadratic topologies designed under this kernel-free paradigm. Beyond an extensive 34-run exploratory pretraining regimen up to 200M scale, we scale our flagship 3:1 Interleaved CS-LRAD Hybrid architecture to a \textbf{500M parameter foundational language model} pre-trained on a **100-billion token runway** ($4\times$ NVIDIA H100 GPUs) and post-trained via Supervised Fine-Tuning (SFT) on the \texttt{smol-smoltalk} instruction dataset ($2\times$ NVIDIA RTX 4090 GPUs). Instruction alignment yields marked downstream reasoning leaps, pushing HellaSwag Acc-Norm from $43.69\%$ to **$52.52\%$**, ARC-Easy from $53.58\%$ to **$59.18\%$**, ARC-Challenge from $28.92\%$ to **$35.41\%$**, and WinoGrande to **$55.80\%$**. Furthermore, we validate BareTorch at strict parameter parity ($<0.15\%$ parameter divergence) against modern open-source baselines (Llama 3.2 1B, Qwen 2.5 1.5B, SmolLM2 1.7B, Qwen 3 0.6B, Gemma 2 2B) out to 32,768 tokens across discrete NVIDIA GPUs and Apple Silicon edge hardware (M1 MacBook Pro via native MLX). Our empirical inference suite demonstrates up to **12.51x higher CUDA decode throughput**, up to **44.98x higher Apple Silicon MLX decode throughput**, up to **80.6\% reduction in peak VRAM**, up to **92.8\% faster prefill latency**, and complete immunity to Out-Of-Memory (OOM) crashes on long-context workloads.
+Modern deep learning is deeply entangled with custom hardware lock-in, where the validation and deployment of alternative sub-quadratic sequence mixers (e.g., State Space Models, Gated Linear Attention, Gated DeltaNet) requires writing complex, hardware-specific CUDA or Triton kernels to achieve operational wall-clock competitiveness. This architectural dependency acts as a structural barrier to universal hardware portability across systolic arrays and edge silicon. In this work, we introduce \textbf{BareTorch}, an open-source development ecosystem designed to build, scale, and distil competitive sequence architectures utilizing strictly pure, high-level matrix multiplication (GEMM) equations and an exact $O(1)$ low-rank recurrent state update. First, we formulate and evaluate ten custom sub-quadratic topologies across a 34-run exploratory pretraining regimen up to 200M parameters. Second, we validate from-scratch scaling by pre-training \textbf{\texttt{BareTorch-2.5B-Base}} on \textbf{75 billion tokens} via Top-4 Logit Knowledge Distillation ($0.5\,\mathcal{L}_{\text{CE}} + 0.5\,\mathcal{L}_{\text{KL}}$) from \texttt{Qwen3.5-9B}, achieving a \textbf{57.87\%} 7-task zero-shot average that outperforms 300B-token baselines (\texttt{Pythia-2.8B}, \texttt{Mamba-1.4B}) while delivering \textbf{13.37x faster 32K prefill} on Google Cloud TPUs (\texttt{v5e-1}), \textbf{1.34x faster 32K prefill} with \textbf{1.48 GB lower RAM} on Apple Silicon M1 (MLX 4-bit), and \textbf{1.39x faster decoding} on NVIDIA CUDA. Finally, we introduce the \textbf{BareTorch Surgical Layerwise Up-Distillation \& \texttt{<think>} GRPO Engine}, converting native \texttt{Qwen3.5} models into 3:1 Interleaved CS-LRAD hybrids (\textbf{\texttt{BareTorch-Qwen3.5-2B-Hybrid}} and \textbf{\texttt{BareTorch-Qwen3.5-4B-Hybrid}}) in hours on $8\times$ NVIDIA H100 GPUs. Our hybrid models surpass their native \texttt{Qwen3.5} teachers across both the 10-task \texttt{lm-eval} suite (\textbf{105.0\%} retention on 2B; \textbf{100.7\%} on 4B) and the 5-task \texttt{<think>} Generative Reasoning \& Python Coding suite (\textbf{117.7\%} retention on 2B; \textbf{103.5\%} on 4B), while delivering up to \textbf{1.63x faster prefill}, \textbf{1.18x faster decoding}, \textbf{3.2x smaller short-context cache}, and up to \textbf{1.67 GB lower 32K Peak VRAM} on an NVIDIA RTX 4090 without a single custom CUDA or Triton kernel.
 \end{abstract}
 
 \section{Introduction}
 The field of foundational language modeling is currently undergoing a structural pivot away from standard $O(N^2)$ Softmax attention and toward sub-quadratic sequence-mixing mechanics. Architectural innovations such as Gated Linear Attention (GLA), Mamba variants, and Gated Delta Networks (GDN) have proven that hidden state recurrence can operate with linear computational and spatial complexity during decoding.
 
-However, an unaddressed systemic bottleneck plagues this architectural evolution: custom kernel lock-in. Under standard execution pipelines, an alternative sequence mixer expressed in high-level primitive equations (such as element-wise scans or material loops) faces severe execution degradation due to the sequential nature of PyTorch's eager execution model. To bypass this, researchers routinely rely on custom CUDA or Triton kernel engineering. While this approach recovers hardware utilization, it restricts architectural development to specific GPU targets, significantly limits compilation portability, and prevents multi-hardware execution on alternative accelerators (e.g., TPU, WebGPU, Apple Silicon, or commodity edge devices).
+However, an unaddressed systemic bottleneck plagues this architectural evolution: custom kernel lock-in. Under standard execution pipelines, an alternative sequence mixer expressed in high-level primitive equations (such as element-wise scans or sequential token loops) faces severe execution degradation due to the sequential nature of PyTorch's eager execution model. To bypass this, researchers routinely rely on custom C++/CUDA/Triton kernel engineering (\texttt{causal-conv1d}, \texttt{flash-linear-attention}). While this approach recovers GPU utilization on specific datacenter targets, it restricts architectural deployment, breaks compilation portability, and causes severe sequential fallback bottlenecks on alternative accelerators such as Google Cloud TPUs (OpenXLA systolic arrays), Apple Silicon (Metal/MLX), WebGPU, and commodity edge NPUs.
 
-To address this challenge, this paper introduces \textbf{BareTorch}, an engineering paradigm and architecture library built on a core philosophy: next-generation sequence-mixing topologies should challenge state-of-the-art foundation models while remaining entirely compliant with high-level, native PyTorch tensor blocks. Rather than relying on hardware-specific low-level optimization tricks, BareTorch achieves sub-quadratic execution scaling by leveraging structured block-parallel chunk segmentation. By structuring sequence hidden states into uniform, statically bound tensor blocks, the underlying computations map directly into highly optimized BLAS/GEMM routines natively accelerated by all modern hardware backends.
+To address this challenge, this paper introduces \textbf{BareTorch}, an engineering paradigm and architecture library built on a core philosophy: next-generation sequence-mixing topologies should challenge and surpass state-of-the-art foundation models while remaining 100\% compliant with high-level, standard matrix multiplication (GEMM) tensor blocks. Rather than relying on hardware-locked low-level kernels, BareTorch achieves sub-quadratic execution scaling by leveraging structured block-parallel chunk segmentation paired with an exact $O(1)$ low-rank recurrent associative state update. By structuring sequence hidden states into uniform, statically bound tensor chunks, all intra-chunk and inter-chunk computations map directly onto standard BLAS/GEMM routines natively accelerated by every modern AI chip.
 
 \section{Mathematical Foundations}
-The primary objective of BareTorch is to replace fine-grained, token-level sequential dependencies with macro-level, block-parallel tensor operations. We implement ten distinct mathematical paradigms that satisfy this constraint, allowing highly complex, recurrent, or hierarchical interactions to resolve purely via parallelized GEMM paths.
+The primary objective of BareTorch is to replace fine-grained, token-level sequential dependencies with macro-level, block-parallel tensor operations. We implement ten distinct mathematical paradigms that satisfy this constraint, allowing complex recurrent or hierarchical interactions to resolve purely via parallelized GEMM paths.
 
-In our production-grade implementation, we leverage an \textbf{Interleaved CS-LRAD Hybrid Topology} ($3 \times \text{CS-LRAD} \to 1 \times \text{Transformer}$ pattern), which couples $75\%$ linear memory-bandwidth-efficient chunk processing with $25\%$ full Softmax attention layers to combine sub-quadratic decoding with expressivity.
+In our production foundation models and surgical hybrid conversions, we utilize a \textbf{3:1 Interleaved CS-LRAD Hybrid Topology} ($3 \times \text{CS-LRAD} \to 1 \times \text{Full-Attention}$ pattern), which couples $75\%$ linear memory-bandwidth-efficient recurrent chunk processing with $25\%$ full Softmax attention anchor layers to combine $O(1)$ recurrent state decoding with exact long-horizon token retrieval.
 
 \subsection{Causal Block-Kronecker Cascade (CBKC)}
 CBKC operates as an inherently sub-quadratic sequence mixer by restructuring the sequence timeline into a multi-scale binary tree. Over sequence length $L$ and head dimension $d_h$, the context length is partitioned into static blocks of size $B_s = 2^{s+1}$ across $S=11$ stages, bisected into past and future sub-blocks of size $M_s = 2^s$:
-\begin{align*}
+\begin{equation*}
 Q_{b,s}, K_{b,s}, V_{b,s} \in \mathbb{R}^{B \times H \times (L / B_s) \times 2 \times M_s \times d_h}
-\end{align*}
+\end{equation*}
 Cross-block historical accumulation and state synthesis are computed via:
 \begin{align*}
-S_{b,s} = &(K_{b,s}[:,:,:,0,:,:])^\top \cdot V_{b,s}[:,:,:,0,:,:] \\
-Y_{b,s,\text{future}} = &\frac{1}{\sqrt{M_s \cdot d_h}} \Big( Q_{b,s}[:,:,:,1,:,:] \cdot S_{b,s} \Big) \odot g_s[:,:,1,:,:]
+S_{b,s} &= (K_{b,s}^{(0)})^\top \cdot V_{b,s}^{(0)} \\
+Y_{b,s,\text{fut}} &= \frac{1}{\sqrt{M_s d_h}} \Big( Q_{b,s}^{(1)} \cdot S_{b,s} \Big) \odot g_s^{(1)} \\
+Y &= V + \frac{1}{\sqrt{S}} \sum_{s=0}^{S-1} Y_{s,\text{update}}
 \end{align*}
-$$Y = V + \left( \sum_{s=0}^{S-1} Y_{s,\text{update}} \right) \odot \frac{1}{\sqrt{S}}$$
+where superscripts $(0)$ and $(1)$ denote the past and future sub-blocks along dimension 3.
 
 \subsection{Chunkwise Cascaded Resonance Sifter (CCRS)}
 CCRS frames sequence tracking as a coupled, second-order linear ordinary differential system unrolled globally via lower-triangular matrix operators over chunks of size $C=32$:
-$$g_1 = \text{clamp}(\sigma(W_{g1} x), 10^{-3}, 0.999)$$
-$$g_2 = \text{clamp}(\sigma(W_{g2} x), 10^{-3}, 0.999)$$
-$$\Lambda_1 = \text{cumsum}(\log(g_1)), \quad \Lambda_2 = \text{cumsum}(\log(g_2))$$
 \begin{align*}
-M_{\text{cascaded}} = &\exp(\Lambda_2 - \Lambda_2^\top) \cdot \exp(\Lambda_1 - \Lambda_1^\top) \odot \mathcal{M}_{\text{causal}} \\
-Y_{\text{local}} = &\left( \frac{1}{\sqrt{d_h}} (Q \cdot K^\top) \odot M_{\text{cascaded}} \right) \cdot V
+g_1 &= \text{clamp}(\sigma(W_{g1} x), 10^{-3}, 0.999) \\
+g_2 &= \text{clamp}(\sigma(W_{g2} x), 10^{-3}, 0.999) \\
+\Lambda_1 &= \text{cumsum}(\log g_1), \quad \Lambda_2 = \text{cumsum}(\log g_2) \\
+M_{\text{casc}} &= \exp(\Lambda_2 - \Lambda_2^\top) \cdot \exp(\Lambda_1 - \Lambda_1^\top) \odot \mathcal{M}_{\text{causal}} \\
+Y_{\text{local}} &= \left( \frac{1}{\sqrt{d_h}} (Q K^\top) \odot M_{\text{casc}} \right) V
 \end{align*}
 Global tracking collects residues across macro-blocks:
 \begin{align*}
-S_{\text{delta}} = &(K \odot \exp(\Lambda_{1,\text{end}} - \Lambda_1))^\top \cdot V \\
-S_{\text{historical}} = &\exp(\Lambda_{c1} - \Lambda_{c1}^\top - \log(g_{c1})^\top) \, \cdot \\
-&\exp(\Lambda_{c2} - \Lambda_{c2}^\top - \log(g_{c2})^\top) \cdot S_{\text{delta}} \\
-Y_{\text{global}} = &\frac{1}{\sqrt{d_h}} (Q \odot \exp(\Lambda_2)) \cdot S_{\text{historical}}
+S_{\text{delta}} &= \big(K \odot \exp(\Lambda_{1,\text{end}} - \Lambda_1)\big)^\top V \\
+M_{\text{global},1} &= \exp(\Lambda_{c1} - \Lambda_{c1}^\top - \log g_{c1}^\top) \\
+M_{\text{global},2} &= \exp(\Lambda_{c2} - \Lambda_{c2}^\top - \log g_{c2}^\top) \\
+S_{\text{hist}} &= M_{\text{global},1} \cdot M_{\text{global},2} \cdot S_{\text{delta}} \\
+Y_{\text{global}} &= \frac{1}{\sqrt{d_h}} \big(Q \odot \exp(\Lambda_2)\big) \cdot S_{\text{hist}}
 \end{align*}
 
 \subsection{Causal Kernel-Gated Tensor Sifter (CKTS)}
 CKTS fuses local chunkwise causal attention with an anisotropic global state-space track:
-$$\text{Scores} = \frac{Q_l \cdot K_l^\top}{\sqrt{d_h}} \odot \mathcal{M}_{\text{causal}}, \quad Y_{\text{local}} = \text{Softmax}(\text{Scores}) \cdot V_l$$
-$$\Lambda_\alpha = \text{cumsum}(\log(\alpha)), \quad Q_{g,\text{scaled}} = Q_g \odot \exp(\Lambda_\alpha)$$
 \begin{align*}
-S_{\text{all}} = &\text{cumsum}\left( \frac{\exp(\Lambda_{\alpha,\text{end}}) \otimes (K_{g,\text{scaled}}^\top \cdot V_{g,\text{gated}})}{\Sigma_{\text{chunk}} + 10^{-6}} \right) \\
-&\cdot \Sigma_{\text{chunk}}
+\text{Scores} &= \frac{Q_l K_l^\top}{\sqrt{d_h}} \odot \mathcal{M}_{\text{causal}}, \quad Y_{\text{local}} = \text{Softmax}(\text{Scores}) V_l \\
+\Lambda_\alpha &= \text{cumsum}(\log \alpha), \quad Q_{g,\text{sc}} = Q_g \odot \exp(\Lambda_\alpha) \\
+S_{\text{all}} &= \text{cumsum}\!\left( \frac{\exp(\Lambda_{\alpha,\text{end}}) \otimes (K_{g,\text{sc}}^\top V_{g,\text{gated}})}{\Sigma_{\text{chunk}} + 10^{-6}} \right) \Sigma_{\text{chunk}} \\
+\mathcal{O}\text{ut} &= Y_{\text{local}} + \big(Y_{\text{global}} \odot \sigma(W_{\text{gate}} x)\big)
 \end{align*}
-$$\mathcal{O}\text{ut} = Y_{\text{local}} + (Y_{\text{global}} \odot \sigma(W_{\text{gate}} x))$$
 
 \subsection{Causal Orthogonal Feedback Engine (COFE)}
 COFE applies an unrolled least-squares error-correction step to simulate dynamic memory wiping inside chunks:
-$$G = \frac{1}{\sqrt{d_h}} (K \cdot K^\top)$$
 \begin{align*}
-V_{\text{corrected}} = V - \Big( (G \odot \mathcal{M}_{\text{causal}, \Delta=-1}) \cdot V \Big) \odot \beta
-\end{align*}
-\begin{align*}
-Y_{\text{local}} = \left( \frac{(Q \cdot K^\top) \odot \mathcal{M}_{\text{causal}, \Delta=-1}}{\sqrt{d_h}} \right) \cdot V_{\text{corrected}}
+G &= \frac{1}{\sqrt{d_h}} (K K^\top) \\
+V_{\text{corr}} &= V - \Big( (G \odot \mathcal{M}_{\text{causal}, \Delta=-1}) V \Big) \odot \beta \\
+Y_{\text{local}} &= \left( \frac{(Q K^\top) \odot \mathcal{M}_{\text{causal}, \Delta=-1}}{\sqrt{d_h}} \right) V_{\text{corr}}
 \end{align*}
 
-\subsection{Chunk-Segmented Low-Rank Delta Engine (CS-LRAD)}
-CS-LRAD implements outer-product updates through bounded rank-$r$ projection sub-spaces ($r=8$):
-$$M_{\text{links}} = \exp(\Lambda - \Lambda^\top) \odot \mathcal{M}_{\text{causal}}$$
-$$Y_{\text{local}} = \left( \frac{1}{\sqrt{d_h}} (Q \cdot K^\top) \odot M_{\text{links}} \right) \cdot V$$
+\subsection{Chunked Selective Low-Rank Associative Delta (CS-LRAD)}
+CS-LRAD implements associative outer-product memory updates through bounded low-rank projection subspaces ($r \in \{8, 16, 32\}$) and chunk size $C \in \{32, 64\}$:
 \begin{align*}
-U_{\text{decayed}} = &(U \odot \beta_{\text{gate}}) \odot \left( \frac{\exp(\Lambda_{\text{end}})}{\exp(\Lambda) + 10^{-6}} \right) \\
-S_{\text{historical}} = &M_{\text{chunks}} \cdot (U_{\text{decayed}}^\top \cdot V) \\
-Y_{\text{global}} = &\frac{1}{\sqrt{d_h}} (R \odot \exp(\Lambda)) \cdot S_{\text{historical}}
+M_{\text{links}} &= \exp(\Lambda - \Lambda^\top) \odot \mathcal{M}_{\text{causal}} \\
+Y_{\text{local}} &= \left( \frac{1}{\sqrt{d_h}} (Q K^\top) \odot M_{\text{links}} \right) V \\
+U_{\text{dec}} &= (U \odot \beta_{\text{gate}}) \odot \left( \frac{\exp(\Lambda_{\text{end}})}{\exp(\Lambda) + 10^{-6}} \right) \\
+S_{\text{hist}} &= M_{\text{chunks}} \cdot (U_{\text{dec}}^\top V) \\
+Y_{\text{global}} &= \frac{1}{\sqrt{d_h}} \big(R \odot \exp(\Lambda)\big) \cdot S_{\text{hist}}
 \end{align*}
+During autoregressive decoding ($L=1$), CS-LRAD updates its compact recurrent state $S_t \in \mathbb{R}^{B \times H \times r \times d_h}$ in $O(1)$ time and memory per token while maintaining an exact rolling intra-chunk buffer for seamless chunk-boundary transitions.
 
 \subsection{Chunk-Segmented Adaptive Polynomial Expansion Engine (CS-APEX)}
 CS-APEX pairs intra-chunk Softmax attention with a 2nd-order harmonic polynomial key expansion ($K_A, K_B$):
 \begin{align*}
-K_A = &\text{SiLU}(W_{ka} x), \quad K_B = \tanh(W_{kb} x) \odot K_A \\
-V_A = &W_{va} x, \quad V_B = W_{vb} x
-\end{align*}
-$$Y_{\text{local}} = \text{Softmax}\left( \frac{Q K_A^\top}{\sqrt{d_h}} \odot \mathcal{M}_{\text{causal}} \right) V_A$$
-\begin{align*}
-S_A &= M_{\text{chunks}} \cdot (K_{A,\text{decayed}}^\top V_A) \\
-S_B &= M_{\text{chunks}} \cdot (K_{B,\text{decayed}}^\top V_B) \\
-Y_{\text{global}} &= Y_{A,\text{global}} + \gamma \odot \Big( Y_{B,\text{global}} \odot \text{SiLU}(Y_{A,\text{global}}) \Big)
+K_A &= \text{SiLU}(W_{ka} x), \quad K_B = \tanh(W_{kb} x) \odot K_A \\
+V_A &= W_{va} x, \quad V_B = W_{vb} x \\
+Y_{\text{local}} &= \text{Softmax}\!\left( \frac{Q K_A^\top}{\sqrt{d_h}} \odot \mathcal{M}_{\text{causal}} \right) V_A \\
+S_A &= M_{\text{chunks}} \cdot (K_{A,\text{dec}}^\top V_A) \\
+S_B &= M_{\text{chunks}} \cdot (K_{B,\text{dec}}^\top V_B) \\
+Y_{\text{global}} &= Y_{A,\text{glob}} + \gamma \odot \Big( Y_{B,\text{glob}} \odot \text{SiLU}(Y_{A,\text{glob}}) \Big)
 \end{align*}
 
 \subsection{Chunk-Segmented Competitive Associative Network (CS-CANN)}
 CS-CANN enforces scale-invariant associative memory retrieval via positive feature maps ($\phi(x) = \text{ELU}(x) + 1.0 > 0$):
 \begin{align*}
-S_V &= M_{\text{chunks}} \cdot (K_{\text{pos},\text{decayed}}^\top V) \\
-S_Z &= M_{\text{chunks}} \cdot \left( \sum K_{\text{pos},\text{decayed}} \right) \\
-Y_{\text{num}} &= \frac{1}{\sqrt{d_h}} (Q_{\text{pos}} \odot \exp(\Lambda)) \cdot S_V \\
-Z_{\text{den}} &= \frac{1}{\sqrt{d_h}} \sum \left( (Q_{\text{pos}} \odot \exp(\Lambda)) \odot S_Z \right) \\
+S_V &= M_{\text{chunks}} \cdot (K_{\text{pos},\text{dec}}^\top V) \\
+S_Z &= M_{\text{chunks}} \cdot \left( \sum K_{\text{pos},\text{dec}} \right) \\
+Y_{\text{num}} &= \frac{1}{\sqrt{d_h}} \big(Q_{\text{pos}} \odot \exp(\Lambda)\big) \cdot S_V \\
+Z_{\text{den}} &= \frac{1}{\sqrt{d_h}} \sum \Big( \big(Q_{\text{pos}} \odot \exp(\Lambda)\big) \odot S_Z \Big) \\
 Y_{\text{global}} &= \frac{Y_{\text{num}}}{Z_{\text{den}} + 10^{-5}} \\
 Y_{\text{fused}} &= \alpha \odot Y_{\text{local}} + (1.0 - \alpha) \odot Y_{\text{global}}
 \end{align*}
@@ -115,18 +132,18 @@ Y_{\text{fused}} &= \alpha \odot Y_{\text{local}} + (1.0 - \alpha) \odot Y_{\tex
 \subsection{Chunk-Segmented Differential Manifold Engine (CS-DME)}
 CS-DME introduces dual-track differential memory subtraction ($S_1 - \lambda S_2$) paired with a non-linear $\text{ReLU}^2$ polynomial kernel:
 \begin{align*}
-A_{1,\text{local}} &= \left[ \text{ReLU}\left( \frac{Q_1 K_1^\top}{\sqrt{d_h}} \right) \right]^2 \odot M_{\text{links}} \\
-A_{2,\text{local}} &= \left[ \text{ReLU}\left( \frac{Q_2 K_2^\top}{\sqrt{d_h}} \right) \right]^2 \odot M_{\text{links}} \\
-Y_{\text{local}} &= (A_{1,\text{local}} - \lambda A_{2,\text{local}}) V \\
-Y_{\text{global}} &= \frac{(Q_1 \odot \exp(\Lambda)) \cdot S_1}{\sqrt{d_h}} - \lambda \cdot \frac{(Q_2 \odot \exp(\Lambda)) \cdot S_2}{\sqrt{d_h}}
+A_{1,\text{loc}} &= \left[ \text{ReLU}\!\left( \frac{Q_1 K_1^\top}{\sqrt{d_h}} \right) \right]^2 \odot M_{\text{links}} \\
+A_{2,\text{loc}} &= \left[ \text{ReLU}\!\left( \frac{Q_2 K_2^\top}{\sqrt{d_h}} \right) \right]^2 \odot M_{\text{links}} \\
+Y_{\text{local}} &= (A_{1,\text{loc}} - \lambda A_{2,\text{loc}}) V \\
+Y_{\text{global}} &= \frac{(Q_1 \odot \exp(\Lambda)) S_1 - \lambda (Q_2 \odot \exp(\Lambda)) S_2}{\sqrt{d_h}}
 \end{align*}
 
 \subsection{Key-Guided Householder Delta Engine (CS-HDE)}
 CS-HDE uses Key-Anchored reflections ($U = K + W_u X$) to perform Householder memory cleansing on local values:
 \begin{align*}
-\beta_{\text{gate}} = &\sigma(W_{\beta} X) \odot \sigma\left( \sum K \odot V \right) \\
-V_{\text{cleansed}} = &V - 2.0 \cdot \beta_{\text{gate}} \odot \langle U_{\text{norm}}, V \rangle U_{\text{norm}} \\
-S_{\text{historical}} = &M_{\text{chunks}} \cdot \left( (K \odot \beta_{\text{gate}})_{\text{decayed}}^\top \cdot V_{\text{cleansed}} \right)
+\beta_{\text{gate}} &= \sigma(W_{\beta} X) \odot \sigma\!\left( \sum K \odot V \right) \\
+V_{\text{clean}} &= V - 2.0 \cdot \beta_{\text{gate}} \odot \langle U_{\text{norm}}, V \rangle U_{\text{norm}} \\
+S_{\text{hist}} &= M_{\text{chunks}} \cdot \left( (K \odot \beta_{\text{gate}})_{\text{dec}}^\top V_{\text{clean}} \right)
 \end{align*}
 
 \subsection{Chunk-Segmented Nilpotent Expansion Engine (CS-NEXUS)}
@@ -134,23 +151,155 @@ CS-NEXUS solves exact intra-chunk error inversion by evaluating an 8th-order Log
 \begin{align*}
 T &= \left( \frac{K K^\top}{\sqrt{d_h}} \odot \beta_{\text{gate}} \right) \odot \mathcal{M}_{\text{causal, strict}} \\
 V_a &= V + T^4 V, \quad V_b = V_a + T^2 V_a \\
-V_{\text{cleansed}} &= V_b - T V_b \\
-S_{\text{historical}} &= M_{\text{chunks}} \cdot \left( (K \odot \beta_{\text{gate}})_{\text{decayed}}^\top \cdot V_{\text{cleansed}} \right)
+V_{\text{clean}} &= V_b - T V_b \\
+S_{\text{hist}} &= M_{\text{chunks}} \cdot \left( (K \odot \beta_{\text{gate}})_{\text{dec}}^\top V_{\text{clean}} \right)
 \end{align*}
 
-\section{Experimental Setup}
-To ensure strict empirical isolation, all architectures were compiled from identical structural baselines using the BareTorch factory layer engine. Pretraining exploration experiments were executed on a dedicated workstation equipped with \textbf{dual NVIDIA GeForce RTX 4090 GPUs ($2 \times 24\text{GB}$ GDDR6X VRAM)}. Scale-up pre-training was executed on a high-throughput cloud cluster powered by \textbf{$4 \times$ NVIDIA H100 SXM GPUs (80GB VRAM)}. Post-training Supervised Fine-Tuning (SFT) was conducted on $2 \times$ NVIDIA RTX 4090 GPUs.
+\section{Exploratory Pretraining \& Pareto Scaling Ledger}
+To ensure strict empirical isolation across our initial architectural search, all ten sequence mixers and baseline topologies were compiled from identical structural scaffolds using the BareTorch factory layer engine. Exploratory pretraining experiments were executed on a dedicated workstation equipped with \textbf{dual NVIDIA GeForce RTX 4090 GPUs ($2 \times 24\text{GB}$ GDDR6X VRAM)}. For short context length $L=256$, mini-batch size was fixed to 64 with 2 gradient accumulation steps (effective batch size 128). For long context length $L=2048$, mini-batch size was fixed to 8 with 2 gradient accumulation steps (effective batch size 16). Learning rate schedules followed a linear warmup for 2,000 steps up to $3 \times 10^{-4}$ followed by cosine decay down to $3 \times 10^{-5}$ across 30,000 total optimization steps (4.2 billion tokens). Table~\ref{tab:pretrain_ledger} (placed in the Appendix Ledger at the end of this paper) catalogs the full empirical results for all 34 pretraining exploration experiments.
 
-For short context length $L=256$, mini-batch size was fixed to 64 with 2 gradient accumulation steps (effective batch size 128). For long context length $L=2048$, mini-batch size was fixed to 8 with 2 gradient accumulation steps (effective batch size 16). Learning rate schedules followed a linear warmup for 2,000 steps up to $3 \times 10^{-4}$ followed by cosine decay down to $3 \times 10^{-5}$ across 30,000 total optimization steps (4.2 billion tokens).
+\subsection{Pareto Scaling Analysis}
+The exploratory pretraining results across Tiny, Small, and Base tiers establish three key Pareto trade-offs that motivated our selection of \textbf{CS-LRAD} as the core recurrent engine for billion-parameter scaling:
+\begin{enumerate}
+    \item \textbf{Tiny Tier ($34\text{M}$):} \texttt{cs\_lrad\_tiny\_2048} (PPL: $40.84$) and \texttt{cs\_cann\_tiny\_2048} (PPL: $41.57$) directly match standard GLA ($41.59$) and Transformer baselines ($40.57$) while sustaining pure-GEMM training velocities ($\sim 180\text{k}$ tok/s).
+    \item \textbf{Small Tier ($100\text{M}$):} At $100\text{M}$ parameters, \texttt{cs\_lrad\_small\_2048} reaches $24.08$ perplexity at $79.7\text{k}$ tok/s, outpacing GLA ($78.5\text{k}$ tok/s) and GDN2 ($59.2\text{k}$ tok/s).
+    \item \textbf{Base Tier ($200\text{M}$):} At the $200\text{M}$ scale, \texttt{cs\_lrad\_base\_2048} achieves a validation perplexity of $18.92$, closely tracking FlashAttention-powered Transformers ($17.43$) while achieving higher training throughput ($36.1\text{k}$ tok/s vs.\ $35.2\text{k}$ tok/s) with zero custom C++/CUDA kernel dependencies.
+\end{enumerate}
 
-\section{Pretraining \& Pareto Scaling Ledger}
-Table 1 catalogs the full empirical results for all 34 pretraining exploration experiments recorded at the 30,000-step anchor mark.
+\section{From-Scratch Foundation Scaling: \texttt{BareTorch-2.5B-Base} (75B Tokens)}
+To prove that pure-GEMM sub-quadratic architectures scale from scratch to multi-billion parameters and transfer effortlessly across non-NVIDIA silicon (where custom CUDA/Triton kernels do not exist), we pre-trained our foundational base model \textbf{\texttt{model-rampage/BareTorch-2.5B-Base}} on a \textbf{75-billion token} runway.
 
-\begin{table*}[t]
+\subsection{Architecture \& Top-4 Logit Distillation Formulation}
+\texttt{BareTorch-2.5B-Base} instantiates a 24-layer 3:1 Interleaved Hybrid backbone ($18$ CS-LRAD recurrent blocks with low-rank factor $r=16$ and chunk size $C=64$, interleaved with $6$ Full-Attention anchor layers at indices $\{3, 7, 11, 15, 19, 23\}$). To maximize token sample efficiency during the 75B-token pre-training run, we trained \texttt{BareTorch-2.5B-Base} using online \textbf{Top-4 Logit Knowledge Distillation} from \texttt{Qwen/Qwen3.5-9B}. At every token position $t$, the teacher extracts its top-$K$ ($K=4$) highest-scoring logits $z_T^{(1:4)}$ and their corresponding vocabulary indices $\mathcal{I}_t^{(1:4)}$. Let $p_T^{(4)} = \text{Softmax}(z_T[\mathcal{I}_t^{(1:4)}])$ and $p_S^{(4)} = \text{Softmax}(z_S[\mathcal{I}_t^{(1:4)}])$. The student minimizes an equal $50\% / 50\%$ blend of standard next-token Cross-Entropy ($\mathcal{L}_{\text{CE}}$) and Top-4 KL divergence:
+\begin{equation}
+\mathcal{L}_{\text{2.5B}} = 0.5 \, \mathcal{L}_{\text{CE}}(z_S, y) + 0.5 \, D_{\text{KL}}\!\left(p_T^{(4)} \,\middle\|\, p_S^{(4)}\right)
+\end{equation}
+
+\subsection{Zero-Shot Sample Efficiency \& Cross-Platform Hardware Portability}
+Trained on \textbf{75B tokens}, \texttt{BareTorch-2.5B-Base} achieves a \textbf{57.87\%} 7-task zero-shot \texttt{lm-eval} macro average, outperforming established open-source models trained on \textbf{300B tokens} ($4\times$ more compute), including \textbf{\texttt{Pythia-2.8B}} ($54.94\%$) and \textbf{\texttt{Mamba-1.4B}} ($56.10\%$), while surpassing \texttt{Qwen3.5-2B-Base} on \textbf{PIQA ($74.81\%$)} and \textbf{OpenBookQA ($39.40\%$)}.
+
+Crucially, we profiled \texttt{BareTorch-2.5B-Base} against native \texttt{Qwen3.5-2B} across three distinct hardware backends at $32,768$ tokens (see Table~\ref{tab:baretorch_2_5b_crossplatform}):
+\begin{itemize}
+    \item \textbf{Google Cloud TPU \texttt{v5e-1} (OpenXLA / TorchTPU BF16):} Because native \texttt{Qwen3.5-2B} relies on \texttt{GatedDeltaNet} recurrence that lacks systolic-array TPU kernels, it collapses into a sequential fallback at 32K context ($17.51\text{s}$ TTFT, $1,871\text{ tok/s}$ prefill, $21.07\text{ tok/s}$ decode). Because \texttt{BareTorch-2.5B-Base} is formulated purely as standard GEMMs, it executes natively on the TPU Matrix Multiply Unit (MXU), completing 32K prefill in \textbf{1.31s ($25,018\text{ tok/s}$ --- 13.37x faster)} and decoding at \textbf{$43.38\text{ tok/s}$ (2.06x faster)}.
+    \item \textbf{Apple Silicon Edge (\texttt{MacBook Pro M1}, Native MLX 4-Bit):} Processes 32K tokens in \textbf{$31.88\text{s}$ ($1,028\text{ tok/s}$)} vs.\ $42.57\text{s}$ ($770\text{ tok/s}$) for \texttt{Qwen3.5-2B} (\textbf{1.34x faster prefill}), sustains \textbf{$75.54\text{ tok/s}$} 32K decoding (up to $99.3\text{ tok/s}$ short-context), and reduces 32K unified RAM by \textbf{1.48 GB (-30\%)} ($3.52\text{ GB}$ vs.\ $5.00\text{ GB}$).
+    \item \textbf{NVIDIA Workstation GPU (CUDA BF16):} Completes 32K prefill in \textbf{$0.99\text{s}$ ($32,919\text{ tok/s}$)} and sustains \textbf{$63.79\text{ tok/s}$} decoding vs.\ $45.82\text{ tok/s}$ for \texttt{Qwen3.5-2B} (\textbf{1.39x faster decode}).
+\end{itemize}
+
+\section{Surgical Layerwise Up-Distillation \& \texttt{<think>} GRPO Pipeline}
+While from-scratch pre-training validates the standalone scaling laws of CS-LRAD, training every new model scale from scratch on hundreds of billions of tokens is computationally expensive. To enable rapid, low-cost conversion of state-of-the-art open-weight models into pure-GEMM BareTorch hybrids, we engineered an 8-stage \textbf{Layerwise Up-Distillation \& Verifiable Reinforcement Learning Pipeline} executed on \textbf{$8\times$ NVIDIA H100 SXM5 (80GB) GPUs}.
+
+We applied this pipeline across the \texttt{Qwen/Qwen3.5} family (\texttt{0.8B}, \texttt{2B}, and \texttt{4B}), producing \textbf{\texttt{BareTorch-Qwen3.5-0.8B-Hybrid}} ($24$ layers, $d=1024$, $r=16$), \textbf{\texttt{BareTorch-Qwen3.5-2B-Hybrid}} ($24$ layers, $d=2048$, $r=32$), and \textbf{\texttt{BareTorch-Qwen3.5-4B-Hybrid}} ($32$ layers, $d=2560$, $r=32$). Across all scales, $75\%$ of the backbone layers ($18/24$ for 0.8B/2B; $24/32$ for 4B) are replaced with pure-PyTorch \texttt{CS-LRAD} recurrent blocks ($C=64$), while the $25\%$ Full-Attention anchor layers ($\{3, 7, 11, \dots\}$) are surgically spliced intact.
+
+\subsection{Multi-Stage Pipeline Architecture \& Mathematical Objectives}
+Each stage in our codebase is governed by a dedicated script, dataset mixture, and loss formulation designed to eliminate representation drift before up-distilling reasoning capabilities from a $2\times$--$5\times$ larger teacher:
+
+\begin{enumerate}
+    \item \textbf{Stage 0 \& 0-Verify (\texttt{init\_student\_00.py}, \texttt{verify\_init.py}) --- Surgical Weight Transfer \& 6-Point Verification:}
+    We copy the token embeddings, tied LM head, final RMSNorm (preserving Qwen3.5's $+1.0$ unit-offset convention), all Full-Attention anchor layers, and all SwiGLU MLPs and LayerNorms inside the CS-LRAD blocks directly from the base teacher. Furthermore, we warm-start the CS-LRAD projections ($W_q, W_k, W_v, W_{\text{swish}}, W_{\text{out}}$) by slicing the teacher's \texttt{GatedDeltaNet} projections (\texttt{in\_proj\_qkv}, \texttt{in\_proj\_z}, \texttt{out\_proj}) and initializing the decay bias to $+2.5$ ($\sigma(2.5) \approx 0.924$) and beta gate bias to $-1.0$. Before training begins, \texttt{verify\_init.py} executes a 6-point verification suite confirming $0.000000$ discrepancy on embeddings, norms, MLPs, spliced attention layers, end-to-end scaffold substitution ($\text{CosSim} = 1.000000$), and cross-chunk ($70 \to 75$ token) recurrent cache equivalence.
+
+    \item \textbf{Stage 0B (\texttt{prepare\_dataset\_00b.py}) --- Pretraining Corpus Packing:}
+    Streams and tokenizes \textbf{600M tokens} of \texttt{HuggingFaceFW/fineweb-edu} (\texttt{sample-10BT}) into packed, zero-padding $2,048$-token sequences ($595\text{M}$ train, $5\text{M}$ validation) using 48 parallel CPU workers.
+
+    \item \textbf{Stage 1 (\texttt{train\_stage1\_mixer\_align\_01.py}) --- Parallel Teacher-Forced Mixer Alignment:}
+    Freezes all embeddings, MLPs, and Full-Attention layers, training \textit{only} the newly initialized CS-LRAD mixers for $1,000$--$1,400$ steps ($131\text{M}$--$367\text{M}$ tokens on FineWeb-Edu, peak $\text{LR} = 1.2\times 10^{-3}$ to $1.5\times 10^{-3}$). Critically, each student CS-LRAD mixer receives the \textbf{clean teacher hidden state} $h_{T}^{(\ell-1)}$ as input and minimizes a cosine-direction + normalized MSE loss against the teacher mixer output $u_T^{(\ell)}$:
+    \begin{align}
+    \mathcal{L}_{\text{Stage1}} &= \frac{1}{|\mathcal{L}_{\text{LRAD}}|} \sum_{\ell \in \mathcal{L}_{\text{LRAD}}} \Big[ \big(1 - \cos(u_S^{(\ell)}, u_T^{(\ell)})\big) \nonumber \\
+    &\quad + 0.1 \, \text{MSE}\big(\hat{u}_S^{(\ell)}, \hat{u}_T^{(\ell)}\big) \Big]
+    \end{align}
+    This decouples layers during early alignment and prevents cascading error accumulation.
+
+    \item \textbf{Stage 2 (\texttt{train\_stage2\_end2end\_02.py}) --- End-to-End Hidden-State \& Logit Distillation:}
+    Unfreezes the CS-LRAD blocks (including their MLPs and RMSNorms) while keeping the backbone embeddings and Full-Attention anchors frozen for $2,500$--$3,500$ steps ($164\text{M}$--$459\text{M}$ tokens, $\text{LR} = 2.5\times 10^{-4}$ to $4.0\times 10^{-4}$). The student runs end-to-end on its own hidden states and optimizes a joint objective combining chunked full-vocabulary ($V=248,320$) forward KL divergence ($\tau=1.0$), next-token cross-entropy, and layerwise hidden-state cosine alignment:
+    \begin{align}
+    \mathcal{L}_{\text{Stage2}} &= 0.5 \, \mathcal{L}_{\text{KL}}(z_T \| z_S) + 0.3 \, \mathcal{L}_{\text{CE}}(z_S, y) \nonumber \\
+    &\quad + 0.2 \, \mathcal{L}_{\text{HiddenCos}}(h_S, h_T)
+    \end{align}
+
+    \item \textbf{Stage 3 (\texttt{train\_stage3\_full\_kd\_03.py}) --- Full-Model Joint Knowledge Distillation:}
+    Unfreezes 100\% of the student parameters for $3,500$--$4,800$ steps ($229\text{M}$--$629\text{M}$ tokens) using \textbf{differential learning rates}: a $10\times$ higher learning rate on CS-LRAD parameters ($\text{LR}_{\text{LRAD}} = 1.2\times 10^{-4}$ to $2.0\times 10^{-4}$) and a gentle adaptation rate on pretrained backbone weights ($\text{LR}_{\text{back}} = 1.2\times 10^{-5}$ to $2.5\times 10^{-5}$), minimizing $\mathcal{L}_{\text{Stage3}} = 0.5\,\mathcal{L}_{\text{KL}}(z_T \| z_S) + 0.5\,\mathcal{L}_{\text{CE}}(z_S, y)$. On the 4B hybrid, validation perplexity converges to $11.14$ (vs.\ $10.55$ native teacher PPL).
+
+    \item \textbf{Stage 3B (\texttt{train\_stage3b\_long\_context\_03b.py}) --- 32,768-Token (512-Chunk) Horizon Extension:}
+    Concatenates packed FineWeb-Edu blocks into contiguous $32,768$-token sequences ($512$ recurrent chunks of $C=64$) and trains for $500$--$700$ steps ($131\text{M}$--$367\text{M}$ tokens) with a \textbf{$1.5\times$ late-horizon focal weight} applied to token positions $[2048 \dots 32768]$. On the 4B model, late-horizon perplexity $\text{PPL}_{2\text{K}-32\text{K}}$ drops to $11.33$ (matching the teacher's $10.96$ across 512 recurrent state transitions).
+
+    \item \textbf{Stage 4A (\texttt{train\_stage4a\_updistill\_sft\_05.py}) --- 5-Pillar Focal SFT with Native Subspace Preservation:}
+    Constructs a 373.6M-token ($182,431$ sequences of length $2,048$) 5-Pillar instruction and reasoning dataset combining \texttt{OpenMathInstruct-2}, \texttt{OpenCodeInstruct}, \texttt{SmolTalk}, scientific/commonsense QA (\texttt{SciQ}, \texttt{ARC}, \texttt{OpenBookQA}, \texttt{PIQA}, \texttt{WinoGrande}, \texttt{BoolQ}, \texttt{HellaSwag}), and \texttt{MMLU} auxiliary training splits, mixed with $15\%$ FineWeb-Edu replay. Crucially, Stage 4A distills full-vocabulary KL from the \textbf{native same-scale teacher} (\texttt{Qwen3.5-2B} for 2B; \texttt{Qwen3.5-4B} for 4B) rather than a mismatched larger teacher, preventing tied embedding/LM-head subspace corruption. Token-level focal weights ($12.0\times$ on MMLU answer tokens, $4.0\times$ on concise QA/cloze answers, and $1.5\times$ on tokens crossing chunk boundaries $t \ge 64$) drive Student response validation PPL to \textbf{3.34} on 4B --- surpassing the native \texttt{Qwen3.5-4B} teacher's \textbf{3.68} PPL!
+
+    \item \textbf{Stage 4B (\texttt{train\_stage4b\_dpo\_align\_06.py}) --- 6-Pillar Contrastive DPO + Larger-Teacher Top-64 Skew-KD:}
+    Introduces the \textbf{larger Up-Distillation Teacher} (\texttt{Qwen3.5-4B} for 0.8B/2B; \texttt{Qwen3.5-9B} for 4B) across $208,086$ contrastive $(x, y_w, y_l)$ pairs ($40,000$--$112,000$ pairs trained). To extract dark knowledge from the larger teacher without perturbing the student's 248,320 vocabulary tail, we restrict distillation to the teacher's \textbf{Top-64 active tokens} using a DistiLLM-2 Skew-KL + Skew-Reverse-KL ($\alpha=0.1$) objective blended with Reference-Anchored DPO ($\beta=0.1$):
+    \begin{align}
+    \mathcal{L}_{\text{Stage4B}} &= 0.45 \, \mathcal{L}_{\text{DPO-T}} + 0.30 \, \mathcal{L}_{\text{Skew64}}(y_w) \nonumber \\
+    &\quad + 0.25 \, \mathcal{L}_{\text{Focal-NLL}}(y_w)
+    \end{align}
+    On the 4B hybrid, contrastive validation win-rate reaches \textbf{84.8\%} (accuracy \textbf{88.2\%}).
+
+    \item \textbf{Stage 4C (\texttt{train\_stage4c\_grpo\_math\_code\_07.py}) --- 4-Pillar \texttt{<think>}-Guided Dr.\ GRPO + Winner-Only Skew-KD:}
+    Executes $1,500$--$2,000$ steps of on-policy group reinforcement learning ($G=12$ to $16$ rollouts per prompt; $144,000$--$256,000$ total rollouts) across a 4-pillar verifiable curriculum ($7,423$ \texttt{GSM8K} problems, $4,082$ Competition \texttt{MATH} problems, $2,969$ PhD/STEM \texttt{<think>} multiple-choice problems, and $424$ \texttt{MBPP} Python coding tasks with live sandboxed \texttt{assert} unit-test execution). Rollouts are scored by a deterministic verifier ($+1.0$ for passing all Python unit tests or matching the exact numeric/boxed answer, $+0.25$ for valid Python AST syntax, $+0.15$ for structured \texttt{<think>...</think>} formatting). Using Dr.\ GRPO's length-unbiased advantage $A_i = R_i - \bar{R}$, the student optimizes on-policy policy gradients alongside larger-teacher Top-64 Skew-KD computed \textit{exclusively on the winning rollout} $y_{\text{best}}$:
+    \begin{align}
+    \mathcal{L}_{\text{Stage4C}} &= 0.40 \, \mathcal{L}_{\text{GRPO}} + 0.40 \, \mathcal{L}_{\text{Skew64}}(y_{\text{best}}) \nonumber \\
+    &\quad + 0.20 \, \mathcal{L}_{\text{NLL}}(y_{\text{best}})
+    \end{align}
+    During Stage 4C on the 4B hybrid, held-out greedy validation accuracy jumps from $35.0\%$ at step 0 ($62.0\%$ GSM8K, $8.0\%$ MBPP) to \textbf{61.0\%} ($72.0\%$ GSM8K, $52.0\%$ MBPP).
+\end{enumerate}
+
+\section{Comprehensive Evaluation of BareTorch-Qwen3.5 Hybrids}
+We evaluate our distilled hybrid models against their native \texttt{Qwen/Qwen3.5} teachers across three rigorous axes: (1) non-generative zero-shot log-likelihood benchmarks via EleutherAI's \texttt{lm-evaluation-harness} (\texttt{run\_lm\_eval\_benchmarks\_04.py}), (2) 5-task generative reasoning and unit-tested Python code synthesis (\texttt{run\_generative\_benchmarks\_08.py}), and (3) hardware prefill/decode throughput and VRAM footprint from $L=512$ to $32,768$ tokens (\texttt{run\_hardware\_benchmarks\_09.py}).
+
+\subsection{Non-Generative Benchmarks (10-Task \texttt{lm-evaluation-harness} Suite)}
+Table~\ref{tab:lm_eval_comparison} reports the zero-shot performance across 10 standard benchmarks (including all 57 subjects of MMLU) for both \textbf{\texttt{BareTorch-Qwen3.5-2B-Hybrid}} (vs.\ native \texttt{Qwen/Qwen3.5-2B}) and \textbf{\texttt{BareTorch-Qwen3.5-4B-Hybrid}} (vs.\ native \texttt{Qwen/Qwen3.5-4B}). Both BareTorch hybrids \textbf{exceed 100\% overall teacher retention}, achieving \textbf{64.45\% vs.\ 61.40\% (105.0\% retention)} at the 2B scale and \textbf{71.72\% vs.\ 71.19\% (100.7\% retention)} at the 4B scale.
+
+\subsection{Generative Reasoning \& Coding Benchmarks (5-Task \texttt{<think>} Suite)}
+Because static log-likelihood benchmarks only evaluate single-token continuation probabilities, we further evaluate long-horizon autoregressive generation (up to $512$ generated tokens) across five challenging reasoning and coding benchmarks: \textbf{GSM8K} ($500$ problems, exact numeric match), \textbf{MATH-500} ($500$ competition math problems, LaTeX boxed match), \textbf{GPQA-Diamond} ($448$ PhD-level STEM multiple-choice problems with \texttt{<think>} reasoning), \textbf{MBPP} ($500$ Python programming problems, unit-tested \texttt{pass@1}), and \textbf{HumanEval} ($164$ Python programming problems, unit-tested \texttt{pass@1}).
+
+As shown in Table~\ref{tab:gen_eval_comparison}, Stage 4C \texttt{<think>}-guided Dr.\ GRPO and larger-teacher Skew-KD propel both BareTorch hybrids past their native teachers:
+\begin{itemize}
+    \item \textbf{\texttt{BareTorch-Qwen3.5-2B-Hybrid}:} Achieves a \textbf{25.50\%} 5-task generative macro average vs.\ \textbf{21.67\%} for native \texttt{Qwen3.5-2B} (\textbf{117.7\% retention, +3.83\%}), highlighted by a jump from $1.60\% \to \mathbf{24.20\%}$ Pass@1 on \textbf{MBPP} ($1512.5\%$ retention) and $4.69\% \to \mathbf{25.67\%}$ on \textbf{GPQA-Diamond} ($547.6\%$ retention).
+    \item \textbf{\texttt{BareTorch-Qwen3.5-4B-Hybrid}:} Achieves a \textbf{37.03\%} 5-task generative macro average vs.\ \textbf{35.79\%} for native \texttt{Qwen3.5-4B} (\textbf{103.5\% retention, +1.24\%}), achieving \textbf{73.80\%} on \textbf{GSM8K}, \textbf{33.00\%} on \textbf{MATH-500}, \textbf{16.52\%} on \textbf{GPQA-Diamond} ($+13.84\%$), \textbf{36.20\% Pass@1} on \textbf{MBPP} ($+15.20\%$ over teacher), and \textbf{25.61\% Pass@1} on \textbf{HumanEval} ($+9.15\%$ over teacher).
+\end{itemize}
+
+\section{Hardware Speed \& Memory Footprint Across Scales (NVIDIA RTX 4090)}
+To evaluate real-world inference efficiency against Qwen3.5's native hand-written hybrid attention/GatedDeltaNet implementation, we benchmarked all three BareTorch hybrid scales (\texttt{0.8B} with $r=16$; \texttt{2B} with $r=32$; \texttt{4B} with $r=32$) against their corresponding native \texttt{Qwen/Qwen3.5} models on a single \textbf{NVIDIA GeForce RTX 4090 (24GB)} across context lengths spanning $L=512$ to $32,768$ tokens. By invoking \texttt{model.compile\_cs\_lrad(mode="default", dynamic=True)}, TorchInductor fuses all CS-LRAD recurrent blocks into single-graph Triton kernels with dynamic shape support. Critically, during prefill we slice only the final token's hidden state (\texttt{hidden\_states[:, -1:, :]}) prior to the $248,320$-vocabulary \texttt{lm\_head} projection, eliminating multi-gigabyte prefill logit allocations.
+
+Table~\ref{tab:rtx4090_multiscale} presents the complete multi-scale hardware comparison. Across every scale and every context length from $512$ to $32,768$ tokens, BareTorch outperforms native \texttt{Qwen3.5}:
+\begin{itemize}
+    \item \textbf{4B Scale (\texttt{BareTorch-Qwen3.5-4B-Hybrid} vs.\ \texttt{Qwen3.5-4B}):} Reduces active parameters by $160\text{M}$ ($4,045.7\text{M}$ / $7.54\text{ GB}$ vs.\ $4,205.8\text{M}$ / $7.84\text{ GB}$), accelerates prefill by \textbf{1.08x--1.35x}, accelerates decoding by \textbf{1.12x--1.18x} ($37.0$--$37.9\text{ tok/s}$ vs.\ $31.4$--$33.0\text{ tok/s}$), shrinks short-context cache by \textbf{2.6x}, and saves \textbf{1.67 GB of Peak VRAM at 32K context (-13.0\%)} ($11.22\text{ GB}$ vs.\ $12.89\text{ GB}$).
+    \item \textbf{2B Scale (\texttt{BareTorch-Qwen3.5-2B-Hybrid} vs.\ \texttt{Qwen3.5-2B}):} Accelerates prefill by up to \textbf{1.63x} ($34,169\text{ tok/s}$ at 4K; $27,493\text{ tok/s}$ at 32K), accelerates decoding by up to \textbf{1.09x} ($48.1\text{ tok/s}$), shrinks short-context cache by \textbf{2.3x}, and reduces 32K Peak VRAM by \textbf{310 MB} ($5.87\text{ GB}$ vs.\ $6.18\text{ GB}$).
+    \item \textbf{0.8B Scale (\texttt{BareTorch-Qwen3.5-0.8B-Hybrid} vs.\ \texttt{Qwen3.5-0.8B}):} Reaches peak prefill throughput of \textbf{82,767 tok/s} at 2K context (\textbf{1.58x--1.63x faster}), decodes at \textbf{50.0 tok/s} (\textbf{1.13x faster}), shrinks short-context cache by \textbf{3.2x} ($7.9\text{ MB}$ vs.\ $25.6\text{ MB}$), and cuts 32K Peak VRAM by \textbf{1.21 GB (-31.0\%)} ($2.70\text{ GB}$ vs.\ $3.91\text{ GB}$).
+\end{itemize}
+
+\subsection{Mechanistic Analysis: Arithmetic Intensity \& Roofline Bounds}
+To understand the hardware-level drivers behind BareTorch's inference speedup across NVIDIA GPUs, Google Cloud TPUs, and Apple Silicon, we evaluate token generation through the hardware Roofline performance model. Execution efficiency is governed by Arithmetic Intensity ($\mathcal{I}$):
+\begin{equation*}
+\mathcal{I} = \frac{\text{Total Computational FLOPs}}{\text{Total Bytes Transferred from Memory}}
+\end{equation*}
+During the prompt prefill phase, batched block-parallel matrix-matrix operations within chunks of size $C=64$ yield high arithmetic intensity ($\mathcal{I} \gg 100$), placing execution directly in the compute-bound regime where GPU Tensor Cores and TPU Systolic Arrays (MXUs) operate near peak utilization without custom C++/CUDA/Triton kernel overhead. Conversely, single-token autoregressive decoding requires sequential matrix-vector operations, causing arithmetic intensity to collapse to $\mathcal{I} \sim 1 - 2\text{ FLOPs/Byte}$ and making decoding strictly \textbf{memory-bandwidth bound}.
+
+Under memory-bound decoding, generation step latency ($\Delta t_{\text{step}}$) is governed by VRAM / Unified Memory bus transfer speed:
+\begin{equation*}
+\Delta t_{\text{step}} \approx \frac{\text{Bytes(Weights)} + \text{Bytes(Active State)}}{\text{Memory Bandwidth}}
+\end{equation*}
+Under BareTorch's $3 \times \text{CS-LRAD} \to 1 \times \text{Full-Attention}$ hybrid design, $75\%$ of layers replace context-dependent $O(L)$ KV-caches with compact, constant-sized low-rank recurrent state updates ($S_t \in \mathbb{R}^{B \times H \times r \times d_h}$, with $r \in \{16, 32\}$). The memory read required per step for all CS-LRAD layers remains invariant to context length $L$:
+\begin{equation*}
+\text{Bytes}_{\text{LRAD}} / \text{Step} = 2 \, N_{\text{LRAD}} H \, r \, d_h \, b_{\text{elem}} \ll O(L)
+\end{equation*}
+where $b_{\text{elem}}$ is the bytes per element. By combining a smaller parameter footprint, compact rank-$r$ recurrent states, and single-token \texttt{lm\_head} prefill slicing, BareTorch eliminates long-context activation spikes and relieves memory-bus bottlenecks across both cloud accelerators and edge devices.
+
+\section{Discussion \& Conclusion}
+The empirical results establish a new standard for the Performance-Portability Pareto Frontier. First, our 34-run pretraining ledger and 75B-token \texttt{BareTorch-2.5B-Base} foundation study demonstrate that pure-GEMM CS-LRAD hybrids scale cleanly from scratch, outperforming 300B-token baselines while delivering \textbf{13.37x faster 32K prefill} on Google Cloud TPUs and \textbf{1.34x faster 32K prefill} with \textbf{30\% lower RAM} on Apple Silicon M1. Second, our multi-stage Surgical Layerwise Up-Distillation and 4-Pillar \texttt{<think>} Dr.\ GRPO pipeline proves that existing pretrained foundation models (\texttt{Qwen3.5-0.8B}, \texttt{2B}, and \texttt{4B}) can be converted into kernel-free 3:1 CS-LRAD hybrids that \textbf{surpass their native teachers} on both the 10-task \texttt{lm-eval} suite (\textbf{105.0\%} and \textbf{100.7\%} retention) and the 5-task \texttt{<think>} generative reasoning and coding suite (\textbf{117.7\%} and \textbf{103.5\%} retention), while running faster and using significantly less VRAM out to $32,768$ tokens.
+
+% ==============================================================================
+% DEDICATED FULL-WIDTH EMPIRICAL BENCHMARK TABLES AT THE END OF THE PAPER
+% ==============================================================================
+\clearpage
+\onecolumn
+
+\section*{Appendix: Empirical Benchmark Ledgers}
+
+\begin{table}[!htbp]
 \centering
-\small
-\setlength{\tabcolsep}{3.5pt}
 \caption{Complete Pretraining Execution \& Convergence Ledger (Dual NVIDIA RTX 4090 Workstation, 4.2B Tokens)}
+\label{tab:pretrain_ledger}
+\vspace{4pt}
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{lcccccccccc}
 \toprule
 \textbf{Configuration ID} & \textbf{Mixer} & \textbf{$L$} & \textbf{Batch} & \textbf{Accum} & \textbf{$d$} & \textbf{Layers} & \textbf{Params} & \textbf{Val Loss} & \textbf{Val PPL} & \textbf{Tok/s} \\
@@ -197,188 +346,146 @@ Table 1 catalogs the full empirical results for all 34 pretraining exploration e
 \texttt{cs\_lrad\_base\_2048} & CS-LRAD & 2048 & 8 & 2 & 768 & 14 & 208.31M & 2.9401 & 18.92 & 36,083 \\
 \texttt{cbkc\_base\_2048} & CBKC & 2048 & 8 & 2 & 768 & 14 & 198.87M & 2.9252 & 18.64 & 18,084 \\
 \bottomrule
-\end{tabular}
-\end{table*}
-
-\subsection{Pareto Scaling Analysis}
-The pretraining results across Tiny, Small, and Base scales establish key Pareto trade-offs:
-1. \textbf{Tiny Tier ($34\text{M}$):} \texttt{cs\_lrad\_tiny\_2048} (PPL: 40.84) and \texttt{cs\_cann\_tiny\_2048} (PPL: 41.57) directly challenge standard GLA (41.59) and Transformer baselines (40.57) while maintaining pure GEMM training velocities ($\sim 180\text{k}$ tok/s).
-2. \textbf{Small Tier ($100\text{M}$):} At $100\text{M}$ parameters, \texttt{cs\_lrad\_small\_2048} reaches $24.08$ perplexity at $79.7\text{k}$ tok/s, outspeeding GLA ($78.5\text{k}$ tok/s) and GDN2 ($59.2\text{k}$ tok/s).
-3. \textbf{Base Tier ($200\text{M}$):} At the $200\text{M}$ scale, \texttt{cs\_lrad\_base\_2048} achieves a validation perplexity of $18.92$, closely targeting FlashAttention-powered Transformers ($17.43$) while achieving higher training throughput ($36.1\text{k}$ tok/s vs $35.2\text{k}$ tok/s) and bypassing custom kernel dependencies.
-
-\subsection{Foundational Scale-Up: 500M Parameter Model on 100B Tokens}
-To demonstrate scaling resilience beyond small-scale exploration, we pre-trained a **~500M parameter foundational language model** (\texttt{baretorch-500m-hybrid}) utilizing our production 3:1 Interleaved CS-LRAD architecture ($24$ layers, $d_{\text{model}}=1152$, $16$ heads, rank $r=8$, chunk size $C=32$). The training run was executed across a cluster of **$4\times$ NVIDIA H100 SXM 80GB GPUs** over a target runway of **100 Billion tokens** ($190,735$ total optimization steps, $524,288$ tokens/step, sequence length $2048$).
-
-The model was optimized using AdamW ($\text{LR}=6 \times 10^{-4}$, weight decay $0.1$, cosine decay scheduler with $2,000$ warmup steps). Training proceeded smoothly without loss spikes or numerical instability:
-\begin{itemize}
-    \item \textbf{Step 1,000:} Train Loss $5.2876$
-    \item \textbf{Step 10,000:} Train Loss $2.7632$ | Eval Loss $2.6943$
-    \item \textbf{Step 50,000:} Train Loss $2.5275$ | Eval Loss $2.4836$
-    \item \textbf{Step 100,000:} Train Loss $2.4324$ | Eval Loss $2.3965$
-    \item \textbf{Step 150,000:} Train Loss $2.3355$ | Eval Loss $2.3054$
-    \item \textbf{Final Step (190,735):} Train Loss $2.2901$ | \textbf{Eval Loss 2.2690}
-\end{itemize}
-
-\subsection{Supervised Fine-Tuning (SFT) Alignment}
-To convert the base foundational checkpoint into an instruction-following model, we conducted 1-epoch Supervised Fine-Tuning using HuggingFaceTB's \texttt{smol-smoltalk} dataset ($\sim 485,000$ instruction samples). SFT was executed on $2\times$ NVIDIA RTX 4090 GPUs across $2,759$ steps (global batch size 64, sequence length 2048, learning rate $1 \times 10^{-5}$ with 100 warmup steps).
-
-During SFT, the evaluation loss smoothly converged from $1.5631$ at step 250 down to a final evaluation loss of **$1.4302$** at step 2759.
-
-\begin{table}[h]
-\centering
-\small
-\caption{Downstream Evaluation Metrics: Pre-Trained Base vs. SFT Aligned BareTorch 500M Model}
-\begin{tabular}{lccc}
-\toprule
-\textbf{Benchmark Task} & \textbf{Metric} & \textbf{Base (100B)} & \textbf{SFT (SmolTalk)} \\
-\midrule
-\textbf{HellaSwag} & Acc / Acc-Norm & 34.84 / 43.69 & 41.31 / \textbf{52.52} \\
-\textbf{ARC-Easy} & Acc / Acc-Norm & 56.19 / 53.58 & 66.58 / \textbf{59.18} \\
-\textbf{ARC-Challenge} & Acc / Acc-Norm & 26.11 / 28.92 & 33.70 / \textbf{35.41} \\
-\textbf{WinoGrande} & Acc & 51.30 & \textbf{55.80} \\
-\midrule
-\textbf{MMLU (Overall)} & Acc & 24.70 & \textbf{25.57} \\
-\textit{-- MMLU STEM} & Acc & 23.53 & \textbf{26.51} \\
-\textit{-- MMLU Humanities} & Acc & 24.87 & \textbf{25.80} \\
-\textit{-- MMLU Social Sciences} & Acc & 24.86 & 23.72 \\
-\textit{-- MMLU Other} & Acc & 25.46 & \textbf{26.10} \\
-\bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
-As cataloged in Table 2, instruction tuning unlocks massive downstream performance gains across all reasoning benchmarks. HellaSwag Acc-Norm surges by **+8.83 percentage points** ($43.69\% \to 52.52\%$), ARC-Easy Acc-Norm rises by **+5.60 percentage points** ($53.58\% \to 59.18\%$), ARC-Challenge rises by **+6.49 percentage points** ($28.92\% \to 35.41\%$), and WinoGrande gains **+4.50 percentage points** ($51.30\% \to 55.80\%$). These results confirm that sub-quadratic pure-GEMM architectures successfully absorb supervised instruction tuning and generalize effectively to downstream task distributions.
-
-\section{Empirical Inference Benchmarks}
-While training convergence validates modeling capacity, a foundational architecture's operational moat lies in its real-world inference efficiency. To evaluate BareTorch under strict parameter parity ($<0.15\%$ divergence), we matched BareTorch Interleaved CS-LRAD models against open-source LLMs across context windows spanning $L=512$ to $32,768$ tokens on both discrete server GPUs and Apple Silicon consumer edge platforms.
-
-\subsection{Discrete CUDA Performance (NVIDIA RTX 4090)}
-Inference metrics on discrete CUDA GPUs (prefill latency, local decode velocity, and peak VRAM) were evaluated on a single \textbf{NVIDIA GeForce RTX 4090 GPU ($24\text{GB}$ GDDR6X VRAM)}. Table 3 details the comparative empirical results against Llama 3.2 1B, Qwen 2.5 1.5B, SmolLM2 1.7B, Qwen 3 0.6B, and Gemma 2 2B.
-
-\begin{table*}[t]
+\begin{table}[!htbp]
 \centering
-\scriptsize
-\setlength{\tabcolsep}{3.5pt}
-\caption{Empirical Inference Metrics on NVIDIA RTX 4090 at Strict Parameter Parity across Context Windows ($L=512 \to 32,768$)}
-\begin{tabular}{llcccccc}
+\caption{Cross-Platform 32,768-Token Hardware Portability: \texttt{BareTorch-2.5B-Base} vs.\ Native \texttt{Qwen3.5-2B}}
+\label{tab:baretorch_2_5b_crossplatform}
+\vspace{4pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccl}
 \toprule
-\textbf{Baseline Model Pair} & \textbf{Context ($L$)} & \multicolumn{2}{c}{\textbf{Prefill Latency (ms)}} & \multicolumn{2}{c}{\textbf{Local GPU Decode (tok/s)}} & \multicolumn{2}{c}{\textbf{Peak VRAM (MB)}} \\
-& & \textbf{BareTorch} & \textbf{Baseline} & \textbf{BareTorch} & \textbf{Baseline} & \textbf{BareTorch} & \textbf{Baseline} \\
+\textbf{Hardware Platform} & \textbf{Context} & \textbf{BareTorch-2.5B TTFT} & \textbf{Qwen3.5-2B TTFT} & \textbf{BareTorch Decode} & \textbf{Qwen3.5 Decode} & \textbf{Key Hardware Takeaway} \\
 \midrule
-\textbf{SmolLM2 1.7B} & 512 & 18.73 & \textbf{17.95} & 158.58 & \textbf{177.42} (0.89x) & \textbf{3385.95} & 3485.44 (-2.9\%) \\
-(1711.4M vs 1709.4M) & 1,024 & \textbf{30.89} & 32.51 & \textbf{159.06} & 155.08 (1.03x) & \textbf{3411.97} & 3668.32 (-7.0\%) \\
-& 2,048 & \textbf{57.00} & 69.51 & \textbf{160.11} & 122.63 (1.31x) & \textbf{3433.98} & 4052.32 (-15.3\%) \\
-& 4,096 & \textbf{112.21} & 158.19 & \textbf{158.83} & 85.18 (1.86x) & \textbf{3498.00} & 4820.32 (-27.4\%) \\
-& 8,192 & \textbf{233.09} & 398.21 & \textbf{159.84} & 52.51 (3.04x) & \textbf{3626.02} & 6356.32 (-43.0\%) \\
-& 16,384 & \textbf{493.19} & 1266.98 & \textbf{127.51} & 29.78 (4.28x) & \textbf{3882.02} & 9428.32 (-58.8\%) \\
-& 32,768 & \textbf{1134.20} & 4292.54 & \textbf{98.92} & 15.79 (\textbf{6.26x}) & \textbf{4394.02} & 15572.34 (-71.8\%) \\
-\midrule
-\textbf{Llama 3.2 1B} & 512 & \textbf{11.98} & 14.35 & \textbf{257.00} & 249.67 (1.03x) & 2431.67 & \textbf{2404.74} (+1.1\%) \\
-(1235.8M vs 1241.5M) & 1,024 & \textbf{18.25} & 24.81 & \textbf{259.12} & 221.25 (1.17x) & \textbf{2440.98} & 2446.43 (-0.2\%) \\
-& 2,048 & \textbf{33.69} & 52.70 & \textbf{263.28} & 183.06 (1.44x) & \textbf{2461.09} & 2512.75 (-2.1\%) \\
-& 4,096 & \textbf{65.71} & 118.68 & \textbf{261.58} & 132.65 (1.97x) & \textbf{2498.45} & 2656.75 (-6.0\%) \\
-& 8,192 & \textbf{130.04} & 291.33 & \textbf{262.24} & 81.63 (3.21x) & \textbf{2571.52} & 2944.76 (-12.7\%) \\
-& 16,384 & \textbf{274.32} & 872.75 & \textbf{222.79} & 45.67 (4.88x) & \textbf{2720.34} & 3520.77 (-22.7\%) \\
-& 32,768 & \textbf{598.36} & 2960.03 & \textbf{169.24} & 24.44 (\textbf{6.92x}) & \textbf{3018.35} & 4672.81 (-35.4\%) \\
-\midrule
-\textbf{Qwen3 0.6B} & 512 & \textbf{12.47} & 16.06 & \textbf{172.22} & 136.76 (1.26x) & \textbf{1243.54} & 1272.82 (-2.3\%) \\
-(596.1M vs 596.8M) & 1,024 & \textbf{11.10} & 18.18 & \textbf{174.39} & 138.37 (1.26x) & \textbf{1250.12} & 1384.96 (-9.7\%) \\
-& 2,048 & \textbf{18.68} & 43.15 & \textbf{169.43} & 134.08 (1.26x) & \textbf{1263.28} & 1617.67 (-21.9\%) \\
-& 4,096 & \textbf{32.24} & 116.87 & \textbf{175.11} & 90.70 (1.93x) & \textbf{1289.53} & 2080.97 (-38.0\%) \\
-& 8,192 & \textbf{62.52} & 346.07 & \textbf{171.12} & 50.07 (3.42x) & \textbf{1347.70} & 3008.98 (-55.2\%) \\
-& 16,384 & \textbf{133.83} & 1180.54 & \textbf{172.19} & 25.79 (6.68x) & \textbf{1448.87} & 4864.99 (-70.2\%) \\
-& 32,768 & \textbf{314.89} & 4343.26 & \textbf{164.49} & 13.15 (\textbf{12.51x}) & \textbf{1660.37} & 8577.02 (-80.6\%) \\
-\midrule
-\textbf{Gemma 2 2B} & 512 & \textbf{19.96} & 27.95 & \textbf{151.11} & 121.79 (1.24x) & \textbf{5058.98} & 5118.53 (-1.2\%) \\
-(2614.3M vs 2612.2M) & 1,024 & \textbf{30.63} & 50.66 & \textbf{153.24} & 107.88 (1.42x) & \textbf{5078.71} & 5212.50 (-2.6\%) \\
-& 2,048 & \textbf{55.98} & 107.20 & \textbf{152.42} & 88.88 (1.71x) & \textbf{5103.70} & 5419.73 (-5.8\%) \\
-& 4,096 & \textbf{107.73} & 47871.92 & \textbf{143.53} & 0.27 (531.6x) & \textbf{5158.78} & 6247.71 (-17.4\%) \\
-& 8,192 & \textbf{223.75} & 610.76 & \textbf{142.16} & 49.37 (2.88x) & \textbf{5273.43} & 6348.00 (-16.9\%) \\
-& 16,384 & \textbf{465.56} & 61438.08 & \textbf{126.86} & 33.57 (3.78x) & \textbf{5501.63} & 7411.65 (-25.8\%) \\
-& 32,768 & \textbf{1049.72} & \textbf{OOM} & \textbf{101.51} & \textbf{OOM} & \textbf{5957.70} & \textbf{OOM} \\
-\midrule
-\textbf{Qwen 2.5 1.5B} & 512 & 21.12 & \textbf{18.53} & 122.11 & \textbf{155.59} (0.78x) & 3150.08 & \textbf{2987.03} (+5.5\%) \\
-(1543.7M vs 1537.0M) & 1,024 & \textbf{28.21} & 32.84 & 121.97 & \textbf{142.94} (0.85x) & 3165.78 & \textbf{3017.62} (+4.9\%) \\
-& 2,048 & \textbf{48.50} & 69.28 & \textbf{123.55} & 117.42 (1.05x) & 3199.59 & \textbf{3091.64} (+3.5\%) \\
-& 4,096 & \textbf{93.52} & 160.48 & \textbf{123.65} & 83.45 (1.48x) & 3258.29 & \textbf{3203.63} (+1.7\%) \\
-& 8,192 & \textbf{187.50} & 401.16 & \textbf{122.52} & 51.84 (2.36x) & \textbf{3373.03} & 3452.36 (-2.3\%) \\
-& 16,384 & \textbf{401.02} & 1178.61 & \textbf{123.51} & 28.43 (4.34x) & \textbf{3610.56} & 3948.45 (-8.6\%) \\
-& 32,768 & \textbf{909.17} & 3862.87 & \textbf{94.00} & 14.97 (\textbf{6.28x}) & \textbf{4080.34} & 4939.68 (-17.4\%) \\
+\textbf{Google Cloud TPU v5e-1} \textit{(BF16)} & 32,768 & \textbf{1.31s} ($25,018\text{ tok/s}$) & 17.51s ($1,871\text{ tok/s}$) & \textbf{43.38 tok/s} & 21.07 tok/s & \textbf{13.37x Faster Prefill, 2.06x Decode} \\
+\textbf{Apple MacBook Pro M1} \textit{(MLX 4-Bit)} & 32,768 & \textbf{31.88s} ($1,028\text{ tok/s}$) & 42.57s ($770\text{ tok/s}$) & \textbf{75.54 tok/s} & 71.28 tok/s & \textbf{1.34x Faster Prefill, -1.48 GB RAM (3.52 GB)} \\
+\textbf{NVIDIA Workstation GPU} \textit{(CUDA BF16)} & 32,768 & \textbf{0.99s} ($32,919\text{ tok/s}$) & 1.04s ($31,365\text{ tok/s}$) & \textbf{63.79 tok/s} & 45.82 tok/s & \textbf{1.39x Faster Decode at 32K Context} \\
 \bottomrule
-\end{tabular}
-\end{table*}
+\end{tabular}%
+}
+\end{table}
 
-\subsection{Apple Silicon Unified Memory Execution (M1 MacBook Pro via Native MLX)}
-To validate the zero-kernel portability hypothesis on edge hardware, we evaluated the exact same model pairs on an \textbf{Apple MacBook Pro (M1, 16GB Unified Memory)} executing natively through Apple's MLX framework. Because BareTorch relies strictly on high-level GEMM blocks, the model logic compiles directly into Metal Shaders via MLX without requiring custom Swift, C++, or Metal kernel engineering. Table 4 lists the edge benchmark metrics against official MLX Hub baselines.
+\clearpage
 
-\begin{table*}[t]
+\begin{table}[!htbp]
 \centering
-\scriptsize
-\setlength{\tabcolsep}{3.5pt}
-\caption{Empirical Inference Metrics on Apple Silicon M1 (MLX) at Strict Parameter Parity across Context Windows ($L=512 \to 32,768$)}
-\begin{tabular}{llcccccc}
+\caption{Zero-Shot 10-Task \texttt{lm-evaluation-harness} Benchmark Suite: BareTorch Hybrids vs.\ Native \texttt{Qwen3.5} Teachers}
+\label{tab:lm_eval_comparison}
+\vspace{4pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llcccccccc}
 \toprule
-\textbf{Baseline Model Pair} & \textbf{Context ($L$)} & \multicolumn{2}{c}{\textbf{Prefill Latency (ms)}} & \multicolumn{2}{c}{\textbf{Local GPU Decode (tok/s)}} & \multicolumn{2}{c}{\textbf{Peak VRAM (MB)}} \\
-& & \textbf{BareTorch} & \textbf{Baseline} & \textbf{BareTorch} & \textbf{Baseline} & \textbf{BareTorch} & \textbf{Baseline} \\
+\textbf{Benchmark Task} & \textbf{Metric} & \multicolumn{4}{c}{\textbf{2B Scale (\texttt{Qwen3.5-2B} $\to$ \texttt{BareTorch-2B})}} & \multicolumn{4}{c}{\textbf{4B Scale (\texttt{Qwen3.5-4B} $\to$ \texttt{BareTorch-4B})}} \\
+\cmidrule(lr){3-6} \cmidrule(lr){7-10}
+& & \textbf{Teacher} & \textbf{Student} & \textbf{$\Delta$ (S$-$T)} & \textbf{Retention} & \textbf{Teacher} & \textbf{Student} & \textbf{$\Delta$ (S$-$T)} & \textbf{Retention} \\
 \midrule
-\textbf{SmolLM2 1.7B} & 512 & 512.31 & \textbf{473.17} & 24.22 & \textbf{43.48} (0.56x) & 4045.67 & \textbf{3462.76} (+16.8\%) \\
-(1711.4M vs 1709.4M) & 1,024 & \textbf{734.15} & 933.84 & \textbf{42.21} & 42.00 (1.01x) & \textbf{3285.51} & 3596.84 (-8.7\%) \\
-& 2,048 & \textbf{1467.44} & 1907.25 & \textbf{40.65} & 37.64 (1.08x) & \textbf{3303.50} & 3851.85 (-14.2\%) \\
-& 4,096 & \textbf{2980.22} & 4028.91 & \textbf{38.61} & 32.52 (1.19x) & \textbf{3339.50} & 4285.90 (-22.1\%) \\
-& 8,192 & \textbf{6118.53} & 8993.02 & \textbf{37.19} & 25.41 (1.46x) & \textbf{3411.52} & 5177.55 (-34.1\%) \\
-& 16,384 & \textbf{13076.51} & 21786.63 & \textbf{34.18} & 18.19 (1.88x) & \textbf{3555.33} & 6709.93 (-47.0\%) \\
-& 32,768 & \textbf{29558.86} & 59032.22 & \textbf{29.69} & 0.66 (\textbf{44.98x}) & \textbf{3778.63} & 9972.94 (-62.1\%) \\
+\textbf{ARC-Challenge} & \texttt{acc\_norm} & 41.38\% & \textbf{53.84\%} & +12.46\% & \textbf{130.1\%} & 54.01\% & \textbf{63.40\%} & +9.39\% & \textbf{117.4\%} \\
+\textbf{ARC-Easy} & \texttt{acc\_norm} & 66.25\% & \textbf{81.40\%} & +15.15\% & \textbf{122.9\%} & 75.59\% & \textbf{85.73\%} & +10.14\% & \textbf{113.4\%} \\
+\textbf{BoolQ} & \texttt{acc} & 71.80\% & \textbf{79.88\%} & +8.07\% & \textbf{111.2\%} & \textbf{86.18\%} & 85.90\% & -0.28\% & 99.7\% \\
+\textbf{HellaSwag} & \texttt{acc\_norm} & \textbf{62.05\%} & 58.19\% & -3.86\% & 93.8\% & \textbf{73.11\%} & 69.87\% & -3.25\% & 95.6\% \\
+\textbf{LAMBADA (OpenAI)} & \texttt{acc} & \textbf{53.29\%} & 46.81\% & -6.48\% & 87.8\% & \textbf{64.70\%} & 57.31\% & -7.39\% & 88.6\% \\
+\textbf{MMLU (57 Subjects)} & \texttt{acc} & \textbf{59.17\%} & 49.50\% & -9.67\% & 83.7\% & \textbf{74.37\%} & 62.35\% & -12.02\% & 83.8\% \\
+\textit{-- MMLU Humanities} & \texttt{acc} & 52.35\% & 43.97\% & -8.37\% & 84.0\% & 65.99\% & 54.73\% & -11.26\% & 82.9\% \\
+\textit{-- MMLU Other} & \texttt{acc} & 63.12\% & 53.14\% & -9.98\% & 84.2\% & 78.15\% & 65.92\% & -12.23\% & 84.3\% \\
+\textit{-- MMLU Social Sciences} & \texttt{acc} & 67.86\% & 58.04\% & -9.81\% & 85.5\% & 83.78\% & 73.51\% & -10.27\% & 87.7\% \\
+\textit{-- MMLU STEM} & \texttt{acc} & 56.99\% & 45.83\% & -11.16\% & 80.4\% & 73.96\% & 59.31\% & -14.65\% & 80.2\% \\
+\textbf{OpenBookQA} & \texttt{acc\_norm} & 35.60\% & \textbf{38.40\%} & +2.80\% & \textbf{107.9\%} & 40.60\% & \textbf{42.80\%} & +2.20\% & \textbf{105.4\%} \\
+\textbf{PIQA} & \texttt{acc\_norm} & 72.85\% & \textbf{73.83\%} & +0.98\% & \textbf{101.3\%} & \textbf{78.40\%} & 77.69\% & -0.71\% & 99.1\% \\
+\textbf{SciQ} & \texttt{acc\_norm} & 88.50\% & \textbf{97.00\%} & +8.50\% & \textbf{109.6\%} & 95.50\% & \textbf{97.40\%} & +1.90\% & \textbf{102.0\%} \\
+\textbf{WinoGrande} & \texttt{acc} & 63.06\% & \textbf{65.67\%} & +2.60\% & \textbf{104.1\%} & 69.46\% & \textbf{74.74\%} & +5.29\% & \textbf{107.6\%} \\
 \midrule
-\textbf{Llama 3.2 1B} & 512 & 348.75 & \textbf{345.96} & 25.36 & \textbf{62.35} (0.41x) & 3395.21 & \textbf{2397.76} (+41.6\%) \\
-(1235.8M vs 1241.5M) & 1,024 & \textbf{434.55} & 678.40 & 54.11 & \textbf{61.21} (0.88x) & \textbf{2388.21} & 2428.19 (-1.7\%) \\
-& 2,048 & \textbf{851.09} & 1374.83 & 55.91 & \textbf{58.94} (0.95x) & \textbf{2401.72} & 2482.19 (-3.2\%) \\
-& 4,096 & \textbf{2035.15} & 2889.97 & \textbf{54.13} & 53.36 (1.01x) & \textbf{2428.72} & 2590.20 (-6.2\%) \\
-& 8,192 & \textbf{3793.91} & 6387.42 & \textbf{51.31} & 47.09 (1.09x) & \textbf{2482.74} & 2771.76 (-10.4\%) \\
-& 16,384 & \textbf{7896.87} & 15307.99 & \textbf{47.60} & 38.59 (1.23x) & \textbf{2590.81} & 3073.85 (-15.7\%) \\
-& 32,768 & \textbf{18694.94} & 41062.33 & \textbf{28.42} & 3.29 (\textbf{8.64x}) & \textbf{2805.93} & 3712.55 (-24.4\%) \\
-\midrule
-\textbf{Qwen3 0.6B} & 512 & \textbf{161.62} & 205.77 & 65.66 & \textbf{96.52} (0.68x) & 1885.38 & \textbf{1289.58} (+46.2\%) \\
-(596.1M vs 596.8M) & 1,024 & \textbf{163.19} & 383.93 & \textbf{113.22} & 76.29 (1.48x) & \textbf{1148.10} & 1393.24 (-17.6\%) \\
-& 2,048 & \textbf{311.02} & 822.79 & \textbf{111.39} & 84.97 (1.31x) & \textbf{1155.09} & 1593.24 (-27.5\%) \\
-& 4,096 & \textbf{626.07} & 2022.20 & \textbf{108.44} & 70.01 (1.55x) & \textbf{1169.11} & 1904.53 (-38.6\%) \\
-& 8,192 & \textbf{1310.94} & 5276.01 & \textbf{100.16} & 46.74 (2.14x) & \textbf{1197.13} & 2427.10 (-50.7\%) \\
-& 16,384 & \textbf{2915.43} & 15499.25 & \textbf{92.09} & 32.34 (2.85x) & \textbf{1253.16} & 3446.49 (-63.6\%) \\
-& 32,768 & \textbf{7064.23} & \textbf{OOM} & \textbf{79.55} & \textbf{OOM} & \textbf{1365.22} & \textbf{OOM} \\
-\midrule
-\textbf{Qwen 2.5 1.5B} & 512 & \textbf{429.67} & 443.80 & 26.15 & \textbf{47.62} (0.55x) & 4026.09 & \textbf{2977.07} (+35.2\%) \\
-(1543.7M vs 1537.0M) & 1,024 & \textbf{550.65} & 870.81 & \textbf{45.13} & 44.53 (1.01x) & \textbf{2951.61} & 3003.49 (-1.7\%) \\
-& 2,048 & \textbf{1083.01} & 1766.33 & \textbf{45.38} & 42.67 (1.06x) & \textbf{2966.61} & 3044.01 (-2.5\%) \\
-& 4,096 & \textbf{2182.74} & 3737.70 & \textbf{43.40} & 39.62 (1.10x) & \textbf{2996.62} & 3115.82 (-3.8\%) \\
-& 8,192 & \textbf{4533.22} & 8397.78 & \textbf{41.17} & 36.65 (1.12x) & \textbf{3056.64} & 3275.59 (-6.7\%) \\
-& 16,384 & \textbf{10009.71} & 20676.07 & \textbf{36.00} & 18.00 (2.00x) & \textbf{3176.65} & 3587.62 (-11.5\%) \\
-& 32,768 & \textbf{23368.88} & \textbf{OOM} & \textbf{18.28} & \textbf{OOM} & \textbf{3416.35} & \textbf{OOM} \\
+\textbf{10-Task Macro Average} & \texttt{mean\_acc} & 61.40\% & \textbf{64.45\%} & \textbf{+3.05\%} & \textbf{105.0\%} & 71.19\% & \textbf{71.72\%} & \textbf{+0.53\%} & \textbf{100.7\%} \\
 \bottomrule
-\end{tabular}
-\end{table*}
+\end{tabular}%
+}
+\end{table}
 
-\subsection{Key Empirical Takeaways}
-1. \textbf{Extreme Edge Speedups at 32k Context:} On Apple Silicon (M1 MacBook Pro), standard Transformer decoding slows down drastically under memory bandwidth contention at 32,768 tokens ($0.66\text{ tok/s}$ for SmolLM2 1.7B). BareTorch sustains a generation rate of **29.69 tok/s** (**44.98x decode speedup**).
-2. \textbf{Cross-Platform Memory Footprint Control:} On Apple's Unified Memory Architecture, CS-LRAD caps active decoding memory growth to $O(1)$. At $32,768$ context, peak VRAM drops by **62.1\%** on SmolLM2 1.7B ($3,778.63\text{ MB}$ vs $9,972.94\text{ MB}$) and **63.6\%** on Qwen3 0.6B ($1,253.16\text{ MB}$ vs $3,446.49\text{ MB}$).
-3. \textbf{Edge OOM Prevention:} Standard MLX crashes with Out-Of-Memory errors at $32,768$ tokens on both Qwen3 0.6B and Qwen 2.5 1.5B on 16GB consumer laptops. BareTorch runs both models effortlessly, delivering **79.55 tok/s** on Qwen3 0.6B using only $1.36\text{ GB}$ VRAM.
-4. \textbf{Sub-Linear Prefill Scaling:} Prompt processing time is halved across all edge models at long contexts (e.g., $29.56\text{ s}$ vs $59.03\text{ s}$ on SmolLM2 1.7B at 32k context).
+\begin{table}[!htbp]
+\centering
+\caption{5-Task Generative Reasoning \& Python Coding Suite: BareTorch Hybrids vs.\ Native \texttt{Qwen3.5} Teachers}
+\label{tab:gen_eval_comparison}
+\vspace{4pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llcccccccc}
+\toprule
+\textbf{Generative Benchmark} & \textbf{Metric} & \multicolumn{4}{c}{\textbf{2B Scale (\texttt{Qwen3.5-2B} $\to$ \texttt{BareTorch-2B})}} & \multicolumn{4}{c}{\textbf{4B Scale (\texttt{Qwen3.5-4B} $\to$ \texttt{BareTorch-4B})}} \\
+\cmidrule(lr){3-6} \cmidrule(lr){7-10}
+& & \textbf{Teacher} & \textbf{Student} & \textbf{$\Delta$ (S$-$T)} & \textbf{Retention} & \textbf{Teacher} & \textbf{Student} & \textbf{$\Delta$ (S$-$T)} & \textbf{Retention} \\
+\midrule
+\textbf{GSM8K} \textit{(\texttt{<think>} CoT Math)} & \texttt{exact\_match} & \textbf{65.60\%} & 47.40\% & -18.20\% & 72.3\% & \textbf{90.20\%} & 73.80\% & -16.40\% & 81.8\% \\
+\textbf{MATH-500} \textit{(\texttt{<think>} Boxed)} & \texttt{boxed\_match} & \textbf{20.60\%} & 15.60\% & -5.00\% & 75.7\% & \textbf{48.60\%} & 33.00\% & -15.60\% & 67.9\% \\
+\textbf{GPQA-Diamond} \textit{(PhD STEM)} & \texttt{mc\_think} & 4.69\% & \textbf{25.67\%} & +20.98\% & \textbf{547.6\%} & 2.68\% & \textbf{16.52\%} & +13.84\% & \textbf{616.7\%} \\
+\textbf{MBPP} \textit{(Python Synthesis)} & \texttt{pass@1} & 1.60\% & \textbf{24.20\%} & +22.60\% & \textbf{1512.5\%} & 21.00\% & \textbf{36.20\%} & +15.20\% & \textbf{172.4\%} \\
+\textbf{HumanEval} \textit{(Python Synthesis)} & \texttt{pass@1} & \textbf{15.85\%} & 14.63\% & -1.22\% & 92.3\% & 16.46\% & \textbf{25.61\%} & +9.15\% & \textbf{155.6\%} \\
+\midrule
+\textit{MBPP Syntax Validity} & \texttt{ast\_valid} & 78.20\% & \textbf{92.00\%} & +13.80\% & \textbf{117.6\%} & 85.40\% & \textbf{97.00\%} & +11.60\% & \textbf{113.6\%} \\
+\textit{HumanEval Syntax Validity} & \texttt{ast\_valid} & 78.66\% & \textbf{79.27\%} & +0.61\% & \textbf{100.8\%} & 73.17\% & \textbf{76.22\%} & +3.05\% & \textbf{104.2\%} \\
+\midrule
+\textbf{5-Task Generative Average} & \texttt{macro\_avg} & 21.67\% & \textbf{25.50\%} & \textbf{+3.83\%} & \textbf{117.7\%} & 35.79\% & \textbf{37.03\%} & \textbf{+1.24\%} & \textbf{103.5\%} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
 
-\subsection{Mechanistic Analysis: Arithmetic Intensity \& Roofline Bounds}
-To understand the hardware-level drivers behind BareTorch's inference speedup, we evaluate token generation through the GPU Roofline performance model. Execution efficiency is dictated by Arithmetic Intensity ($\mathcal{I}$):
-$$\mathcal{I} = \frac{\text{Total Computational FLOPs}}{\text{Total Bytes Transferred from VRAM}}$$
-During the prompt prefill phase, batched matrix-matrix operations ($Q \cdot K^\top$) yield high arithmetic intensity ($\mathcal{I} \gg 100$), placing execution in a compute-bound regime where Tensor Cores / GPU Execution Units operate near peak utilization. Conversely, single-token autoregressive decoding requires sequential matrix-vector operations, causing arithmetic intensity to collapse to $\mathcal{I} \sim 1 - 2\text{ FLOPs/Byte}$. As a result, decoding is strictly **memory-bandwidth bound**.
+\clearpage
 
-Under memory-bound decoding, generation step latency ($\Delta t_{\text{step}}$) is governed by VRAM / Unified Memory bus transfer speed rather than compute capacity:
-$$\Delta t_{\text{step}} \approx \frac{\text{Bytes(Model Weights)} + \text{Bytes(Active Memory State)}}{\text{Memory Bandwidth}}$$
-
-In standard $100\%$ Transformer models, generating token $t$ requires reading all model weights $W$ plus the entire historical Key-Value cache across $N_{\text{layers}}$:
-$$\text{KV-Cache Bytes / Step} = 2 \cdot N_{\text{layers}} \cdot H_{\text{kv}} \cdot d_k \cdot L \cdot \text{bytes\_per\_elem}$$
-As sequence context $L$ grows, memory transfers per step increase linearly, saturating the VRAM bus ($1,008\text{ GB/s}$ on RTX 4090, $68\text{ GB/s}$ on M1 Mac) and stalling execution units.
-
-Under BareTorch's $3 \times \text{CS-LRAD} \to 1 \times \text{Transformer}$ hybrid design, $75\%$ of layers replace context-dependent $O(L)$ KV-caches with constant-sized recurrent state updates ($S_{\text{historical}} \in \mathbb{R}^{r \times d_h}$). The memory read required per step for CS-LRAD layers becomes invariant to context length $L$:
-$$\text{CS-LRAD State Bytes / Step} = 2 \cdot N_{\text{layers}} \cdot r \cdot d_h \cdot \text{bytes\_per\_elem} \ll O(L)$$
-
-By eliminating up to $80.6\%$ of sequence-dependent memory traffic, BareTorch relieves the memory bus bottleneck across discrete server GPUs and consumer laptops alike, allowing token generation to run significantly faster per step and propelling decode velocity from $0.66\text{ tok/s} \to 29.69\text{ tok/s}$ on Apple Silicon while preventing out-of-memory crashes out to 32,768 tokens.
-
-\section{Discussion \& Conclusion}
-The empirical results establish a new standard for the Performance-Portability Pareto Frontier. By structuring sequence hidden states into pure, block-parallel PyTorch GEMMs, BareTorch eliminates custom kernel dependencies while outperforming state-of-the-art open-source LLMs in speed, memory footprint, and long-context resilience across discrete NVIDIA GPUs and integrated Apple Silicon hardware.
+\begin{table}[!htbp]
+\centering
+\caption{Multi-Scale Hardware Speed \& Memory Footprint on NVIDIA RTX 4090 ($L=512 \to 32,768$): Compiled BareTorch Hybrids vs.\ Native \texttt{Qwen3.5}}
+\label{tab:rtx4090_multiscale}
+\vspace{4pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{clcccccl}
+\toprule
+\textbf{Context} & \textbf{Model (Compiled BareTorch vs.\ Native Qwen3.5)} & \textbf{TTFT (ms)} & \textbf{Prefill (tok/s)} & \textbf{Decode (tok/s)} & \textbf{Cache (MB)} & \textbf{Peak VRAM} & \textbf{Speedup / Memory Savings} \\
+\midrule
+\multicolumn{8}{l}{\textbf{Panel A: 4B Scale --- \texttt{BareTorch-Qwen3.5-4B-Hybrid} ($4,045.7\text{M}$, $r=32$, Static $7.54\text{ GB}$) vs.\ Native \texttt{Qwen3.5-4B} ($4,205.8\text{M}$, Static $7.84\text{ GB}$)}} \\
+512 & \textbf{BareTorch-Qwen3.5-4B-Hybrid (r=32, Compiled)} & \textbf{39.8 ms} & \textbf{12,877 tok/s} & \textbf{37.2 tok/s} & \textbf{25.5 MB} & \textbf{7.67 GB} & \textbf{1.35x Prefill, 1.15x Decode, 2.6x Smaller Cache} \\
+512 & Qwen3.5-4B (Native) & 53.5 ms & 9,568 tok/s & 32.3 tok/s & 67.5 MB & 7.97 GB & Baseline \\
+1,024 & \textbf{BareTorch-Qwen3.5-4B-Hybrid (r=32, Compiled)} & \textbf{68.4 ms} & \textbf{14,962 tok/s} & \textbf{37.9 tok/s} & \textbf{41.5 MB} & \textbf{7.67 GB} & \textbf{1.10x Prefill, 1.17x Decode, 2.0x Smaller Cache} \\
+1,024 & Qwen3.5-4B (Native) & 75.4 ms & 13,585 tok/s & 32.5 tok/s & 83.5 MB & 8.05 GB & Baseline \\
+2,048 & \textbf{BareTorch-Qwen3.5-4B-Hybrid (r=32, Compiled)} & \textbf{132.5 ms} & \textbf{15,461 tok/s} & \textbf{36.9 tok/s} & \textbf{73.5 MB} & \textbf{7.78 GB} & \textbf{1.11x Prefill, 1.18x Decode, 1.6x Smaller Cache} \\
+2,048 & Qwen3.5-4B (Native) & 147.0 ms & 13,928 tok/s & 31.4 tok/s & 115.5 MB & 8.20 GB & Baseline \\
+4,096 & \textbf{BareTorch-Qwen3.5-4B-Hybrid (r=32, Compiled)} & \textbf{274.9 ms} & \textbf{14,899 tok/s} & \textbf{37.1 tok/s} & \textbf{137.5 MB} & \textbf{8.01 GB} & \textbf{1.11x Prefill, 1.13x Decode, 1.3x Smaller Cache} \\
+4,096 & Qwen3.5-4B (Native) & 306.0 ms & 13,385 tok/s & 32.7 tok/s & 179.5 MB & 8.52 GB & Baseline \\
+8,192 & \textbf{BareTorch-Qwen3.5-4B-Hybrid (r=32, Compiled)} & \textbf{579.8 ms} & \textbf{14,128 tok/s} & \textbf{37.3 tok/s} & \textbf{265.5 MB} & \textbf{8.47 GB} & \textbf{1.13x Prefill, 1.17x Decode, 670 MB Less VRAM} \\
+8,192 & Qwen3.5-4B (Native) & 655.3 ms & 12,502 tok/s & 31.8 tok/s & 307.5 MB & 9.14 GB & Baseline \\
+16,384 & \textbf{BareTorch-Qwen3.5-4B-Hybrid (r=32, Compiled)} & \textbf{1235.8 ms} & \textbf{13,257 tok/s} & \textbf{37.0 tok/s} & \textbf{521.5 MB} & \textbf{9.38 GB} & \textbf{1.12x Prefill, 1.12x Decode, 1.01 GB Less VRAM} \\
+16,384 & Qwen3.5-4B (Native) & 1389.9 ms & 11,788 tok/s & 32.9 tok/s & 563.5 MB & 10.39 GB & Baseline \\
+32,768 & \textbf{BareTorch-Qwen3.5-4B-Hybrid (r=32, Compiled)} & \textbf{2839.9 ms} & \textbf{11,538 tok/s} & \textbf{37.0 tok/s} & \textbf{1033.5 MB} & \textbf{11.22 GB} & \textbf{1.08x Prefill, 1.12x Decode, 1.67 GB Less VRAM (-13\%)} \\
+32,768 & Qwen3.5-4B (Native) & 3071.2 ms & 10,669 tok/s & 33.0 tok/s & 1075.5 MB & 12.89 GB & Baseline \\
+\midrule
+\multicolumn{8}{l}{\textbf{Panel B: 2B Scale --- \texttt{BareTorch-Qwen3.5-2B-Hybrid} ($r=32$, Compiled) vs.\ Native \texttt{Qwen3.5-2B}}} \\
+512 & \textbf{BareTorch-Qwen3.5-2B-Hybrid (r=32, Compiled)} & \textbf{24.4 ms} & \textbf{20,967 tok/s} & \textbf{47.6 tok/s} & \textbf{11.2 MB} & 3.65 GB & \textbf{1.63x Prefill, 1.07x Decode, 2.3x Smaller Cache} \\
+512 & Qwen3.5-2B (Native) & 39.9 ms & 12,827 tok/s & 44.5 tok/s & 25.6 MB & \textbf{3.57 GB} & Baseline \\
+1,024 & \textbf{BareTorch-Qwen3.5-2B-Hybrid (r=32, Compiled)} & \textbf{31.4 ms} & \textbf{32,618 tok/s} & \textbf{47.9 tok/s} & \textbf{17.2 MB} & 3.62 GB & \textbf{1.27x Prefill, 1.07x Decode, 1.8x Smaller Cache} \\
+1,024 & Qwen3.5-2B (Native) & 39.8 ms & 25,706 tok/s & 44.8 tok/s & 31.6 MB & \textbf{3.61 GB} & Baseline \\
+2,048 & \textbf{BareTorch-Qwen3.5-2B-Hybrid (r=32, Compiled)} & \textbf{61.6 ms} & \textbf{33,237 tok/s} & \textbf{47.0 tok/s} & \textbf{29.2 MB} & \textbf{3.70 GB} & \textbf{1.00x Prefill, 1.05x Decode, 1.5x Smaller Cache} \\
+2,048 & Qwen3.5-2B (Native) & 61.7 ms & 33,166 tok/s & 44.7 tok/s & 43.6 MB & 3.70 GB & Baseline \\
+4,096 & \textbf{BareTorch-Qwen3.5-2B-Hybrid (r=32, Compiled)} & \textbf{119.9 ms} & \textbf{34,169 tok/s} & \textbf{47.8 tok/s} & \textbf{53.2 MB} & \textbf{3.84 GB} & \textbf{1.03x Prefill, 1.05x Decode, 1.3x Smaller Cache} \\
+4,096 & Qwen3.5-2B (Native) & 123.1 ms & 33,263 tok/s & 45.5 tok/s & 67.6 MB & 3.86 GB & Baseline \\
+8,192 & \textbf{BareTorch-Qwen3.5-2B-Hybrid (r=32, Compiled)} & \textbf{253.3 ms} & \textbf{32,343 tok/s} & \textbf{47.7 tok/s} & \textbf{101.2 MB} & \textbf{4.13 GB} & \textbf{1.07x Prefill, 1.05x Decode, 1.1x Smaller Cache} \\
+8,192 & Qwen3.5-2B (Native) & 271.3 ms & 30,198 tok/s & 45.6 tok/s & 115.6 MB & 4.19 GB & Baseline \\
+16,384 & \textbf{BareTorch-Qwen3.5-2B-Hybrid (r=32, Compiled)} & \textbf{534.2 ms} & \textbf{30,672 tok/s} & \textbf{48.1 tok/s} & \textbf{197.2 MB} & \textbf{4.71 GB} & \textbf{1.08x Prefill, 1.09x Decode, 140 MB Less VRAM} \\
+16,384 & Qwen3.5-2B (Native) & 577.0 ms & 28,395 tok/s & 44.2 tok/s & 211.6 MB & 4.85 GB & Baseline \\
+32,768 & \textbf{BareTorch-Qwen3.5-2B-Hybrid (r=32, Compiled)} & \textbf{1191.9 ms} & \textbf{27,493 tok/s} & \textbf{46.8 tok/s} & \textbf{389.2 MB} & \textbf{5.87 GB} & \textbf{1.06x Prefill, 1.03x Decode, 310 MB Less VRAM} \\
+32,768 & Qwen3.5-2B (Native) & 1262.6 ms & 25,952 tok/s & 45.3 tok/s & 403.6 MB & 6.18 GB & Baseline \\
+\midrule
+\multicolumn{8}{l}{\textbf{Panel C: 0.8B Scale --- \texttt{BareTorch-Qwen3.5-0.8B-Hybrid} ($r=16$, Compiled) vs.\ Native \texttt{Qwen3.5-0.8B}}} \\
+512 & \textbf{BareTorch-Qwen3.5-0.8B-Hybrid (r=16, Compiled)} & \textbf{23.8 ms} & \textbf{21,555 tok/s} & \textbf{49.6 tok/s} & \textbf{7.9 MB} & \textbf{1.34 GB} & \textbf{1.63x Prefill, 1.10x Decode, 3.2x Smaller Cache} \\
+512 & Qwen3.5-0.8B (Native) & 38.8 ms & 13,205 tok/s & 44.9 tok/s & 25.6 MB & 1.49 GB & Baseline \\
+2,048 & \textbf{BareTorch-Qwen3.5-0.8B-Hybrid (r=16, Compiled)} & \textbf{24.7 ms} & \textbf{82,767 tok/s} & \textbf{49.7 tok/s} & \textbf{25.9 MB} & \textbf{1.34 GB} & \textbf{1.58x Prefill, 1.11x Decode, 1.7x Smaller Cache} \\
+2,048 & Qwen3.5-0.8B (Native) & 39.2 ms & 52,277 tok/s & 44.8 tok/s & 43.6 MB & 1.61 GB & Baseline \\
+8,192 & \textbf{BareTorch-Qwen3.5-0.8B-Hybrid (r=16, Compiled)} & \textbf{100.4 ms} & \textbf{81,586 tok/s} & \textbf{50.0 tok/s} & \textbf{97.9 MB} & \textbf{1.61 GB} & \textbf{1.31x Prefill, 1.13x Decode, 22\% Lower VRAM} \\
+8,192 & Qwen3.5-0.8B (Native) & 131.9 ms & 62,122 tok/s & 44.3 tok/s & 115.6 MB & 2.07 GB & Baseline \\
+32,768 & \textbf{BareTorch-Qwen3.5-0.8B-Hybrid (r=16, Compiled)} & \textbf{587.5 ms} & \textbf{55,775 tok/s} & \textbf{49.9 tok/s} & \textbf{385.9 MB} & \textbf{2.70 GB} & \textbf{1.25x Prefill, 1.11x Decode, 1.21 GB Less VRAM (-31\%)} \\
+32,768 & Qwen3.5-0.8B (Native) & 731.9 ms & 44,770 tok/s & 45.1 tok/s & 403.6 MB & 3.91 GB & Baseline \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
 
 \end{document}
