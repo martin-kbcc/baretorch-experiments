@@ -33,7 +33,7 @@
 \maketitle
 
 \begin{abstract}
-Modern deep learning is deeply entangled with custom hardware lock-in, where the validation and deployment of alternative sub-quadratic sequence mixers (e.g., State Space Models, Gated Linear Attention, Gated DeltaNet) requires writing complex, hardware-specific CUDA or Triton kernels to achieve operational wall-clock competitiveness. This architectural dependency acts as a structural barrier to universal hardware portability across systolic arrays and edge silicon. In this work, we introduce \textbf{BareTorch}, an open-source development ecosystem designed to build, scale, and distil competitive sequence architectures utilizing strictly pure, high-level matrix multiplication (GEMM) equations and an exact $O(1)$ low-rank recurrent state update. First, we formulate and evaluate ten custom sub-quadratic topologies across a 34-run exploratory pretraining regimen up to 200M parameters. Second, we validate from-scratch scaling by pre-training \textbf{\texttt{BareTorch-2.5B-Base}} on \textbf{75 billion tokens} via Top-4 Logit Knowledge Distillation ($0.5\,\mathcal{L}_{\text{CE}} + 0.5\,\mathcal{L}_{\text{KL}}$) from \texttt{Qwen3.5-9B}, achieving a \textbf{57.87\%} 7-task zero-shot average that outperforms 300B-token baselines (\texttt{Pythia-2.8B}, \texttt{Mamba-1.4B}) while delivering \textbf{13.37x faster 32K prefill} on Google Cloud TPUs (\texttt{v5e-1}), \textbf{1.34x faster 32K prefill} with \textbf{1.48 GB lower RAM} on Apple Silicon M1 (MLX 4-bit), and \textbf{1.39x faster decoding} on NVIDIA CUDA. Finally, we introduce the \textbf{BareTorch Surgical Layerwise Up-Distillation \& \texttt{<think>} GRPO Engine}, converting native \texttt{Qwen3.5} models into 3:1 Interleaved CS-LRAD hybrids (\textbf{\texttt{BareTorch-Qwen3.5-2B-Hybrid}} and \textbf{\texttt{BareTorch-Qwen3.5-4B-Hybrid}}) in hours on $8\times$ NVIDIA H100 GPUs. Our hybrid models surpass their native \texttt{Qwen3.5} teachers across both the 10-task \texttt{lm-eval} suite (\textbf{105.0\%} retention on 2B; \textbf{100.7\%} on 4B) and the 5-task \texttt{<think>} Generative Reasoning \& Python Coding suite (\textbf{117.7\%} retention on 2B; \textbf{103.5\%} on 4B), while delivering up to \textbf{1.63x faster prefill}, \textbf{1.18x faster decoding}, \textbf{3.2x smaller short-context cache}, and up to \textbf{1.67 GB lower 32K Peak VRAM} on an NVIDIA RTX 4090 without a single custom CUDA or Triton kernel.
+Modern deep learning is deeply entangled with custom hardware lock-in, where the validation and deployment of alternative sub-quadratic sequence mixers (e.g., State Space Models, Gated Linear Attention, Gated DeltaNet) requires writing complex, hardware-specific CUDA or Triton kernels to achieve operational wall-clock competitiveness. This architectural dependency acts as a structural barrier to universal hardware portability across systolic arrays and edge silicon. In this work, we introduce \textbf{BareTorch}, an open-source development ecosystem designed to build, scale, and distil competitive sequence architectures utilizing strictly pure, high-level matrix multiplication (GEMM) equations and an exact $O(1)$ low-rank recurrent state update. First, we formulate and evaluate ten custom sub-quadratic topologies across a 34-run exploratory pretraining regimen up to 200M parameters. Second, we validate from-scratch scaling by pre-training \textbf{\texttt{BareTorch-2.5B-Base}} on \textbf{75 billion tokens} via Top-4 Logit Knowledge Distillation ($0.5\,\mathcal{L}_{\text{CE}} + 0.5\,\mathcal{L}_{\text{KL}}$) from \texttt{Qwen3.5-9B}, achieving a \textbf{57.87\%} 7-task zero-shot average that outperforms 300B-token baselines (\texttt{Pythia-2.8B}, \texttt{Mamba-1.4B}) while delivering \textbf{13.37x faster 32K prefill} on Google Cloud TPUs (\texttt{v5e-1}), \textbf{1.34x faster 32K prefill} with \textbf{1.48 GB lower RAM} on Apple Silicon M1 (MLX 4-bit), and \textbf{1.39x faster decoding} on NVIDIA CUDA. Finally, we introduce the \textbf{BareTorch Surgical Layerwise Up-Distillation \& \texttt{<think>} GRPO Engine}, converting native \texttt{Qwen3.5} models into 3:1 Interleaved CS-LRAD hybrids (\textbf{\texttt{BareTorch-Qwen3.5-0.8B-Hybrid}}, \textbf{\texttt{BareTorch-Qwen3.5-2B-Hybrid}}, and \textbf{\texttt{BareTorch-Qwen3.5-4B-Hybrid}}) in hours on $8\times$ NVIDIA H100 GPUs. All three hybrid models surpass their native \texttt{Qwen3.5} teachers across both the 10-task \texttt{lm-eval} suite (\textbf{106.6\%} retention on 0.8B; \textbf{105.0\%} on 2B; \textbf{102.6\%} on 4B) and the 5-task \texttt{<think>} Generative Reasoning \& Python Coding suite (\textbf{174.5\%} retention on 0.8B; \textbf{117.7\%} on 2B; \textbf{113.5\%} on 4B), while delivering up to \textbf{1.64x faster prefill}, \textbf{1.18x faster decoding}, \textbf{3.2x smaller short-context cache}, and up to \textbf{31\% lower 32K Peak VRAM} on an NVIDIA RTX 4090 without a single custom CUDA or Triton kernel.
 \end{abstract}
 
 \section{Introduction}
@@ -222,7 +222,7 @@ Each stage in our codebase is governed by a dedicated script, dataset mixture, a
     Concatenates packed FineWeb-Edu blocks into contiguous $32,768$-token sequences ($512$ recurrent chunks of $C=64$) and trains for $500$--$700$ steps ($131\text{M}$--$367\text{M}$ tokens) with a \textbf{$1.5\times$ late-horizon focal weight} applied to token positions $[2048 \dots 32768]$. On the 4B model, late-horizon perplexity $\text{PPL}_{2\text{K}-32\text{K}}$ drops to $11.33$ (matching the teacher's $10.96$ across 512 recurrent state transitions).
 
     \item \textbf{Stage 4A (\texttt{train\_stage4a\_updistill\_sft\_05.py}) --- 5-Pillar Focal SFT with Native Subspace Preservation:}
-    Constructs a 373.6M-token ($182,431$ sequences of length $2,048$) 5-Pillar instruction and reasoning dataset combining \texttt{OpenMathInstruct-2}, \texttt{OpenCodeInstruct}, \texttt{SmolTalk}, scientific/commonsense QA (\texttt{SciQ}, \texttt{ARC}, \texttt{OpenBookQA}, \texttt{PIQA}, \texttt{WinoGrande}, \texttt{BoolQ}, \texttt{HellaSwag}), and \texttt{MMLU} auxiliary training splits, mixed with $15\%$ FineWeb-Edu replay. Crucially, Stage 4A distills full-vocabulary KL from the \textbf{native same-scale teacher} (\texttt{Qwen3.5-2B} for 2B; \texttt{Qwen3.5-4B} for 4B) rather than a mismatched larger teacher, preventing tied embedding/LM-head subspace corruption. Token-level focal weights ($12.0\times$ on MMLU answer tokens, $4.0\times$ on concise QA/cloze answers, and $1.5\times$ on tokens crossing chunk boundaries $t \ge 64$) drive Student response validation PPL to \textbf{3.34} on 4B --- surpassing the native \texttt{Qwen3.5-4B} teacher's \textbf{3.68} PPL!
+    Constructs a 373.6M-token ($182,431$ sequences of length $2,048$) 5-Pillar instruction and reasoning dataset combining \texttt{OpenMathInstruct-2}, \texttt{OpenCodeInstruct}, \texttt{SmolTalk}, scientific/commonsense QA (\texttt{SciQ}, \texttt{ARC}, \texttt{OpenBookQA}, \texttt{PIQA}, \texttt{WinoGrande}, \texttt{BoolQ}, \texttt{HellaSwag}), and \texttt{MMLU} auxiliary training splits, mixed with $15\%$ FineWeb-Edu replay. Crucially, Stage 4A distills full-vocabulary KL from the \textbf{native same-scale teacher} (\texttt{Qwen3.5-0.8B} for 0.8B; \texttt{Qwen3.5-2B} for 2B; \texttt{Qwen3.5-4B} for 4B) rather than a mismatched larger teacher, preventing tied embedding/LM-head subspace corruption. Token-level focal weights ($12.0\times$ on MMLU answer tokens, $4.0\times$ on concise QA/cloze answers, and $1.5\times$ on tokens crossing chunk boundaries $t \ge 64$) drive Student response validation PPL to \textbf{3.34} on 4B --- surpassing the native \texttt{Qwen3.5-4B} teacher's \textbf{3.68} PPL!
 
     \item \textbf{Stage 4B (\texttt{train\_stage4b\_dpo\_align\_06.py}) --- 6-Pillar Contrastive DPO + Larger-Teacher Top-64 Skew-KD:}
     Introduces the \textbf{larger Up-Distillation Teacher} (\texttt{Qwen3.5-4B} for 0.8B/2B; \texttt{Qwen3.5-9B} for 4B) across $208,086$ contrastive $(x, y_w, y_l)$ pairs ($40,000$--$112,000$ pairs trained). To extract dark knowledge from the larger teacher without perturbing the student's 248,320 vocabulary tail, we restrict distillation to the teacher's \textbf{Top-64 active tokens} using a DistiLLM-2 Skew-KL + Skew-Reverse-KL ($\alpha=0.1$) objective blended with Reference-Anchored DPO ($\beta=0.1$):
@@ -233,27 +233,28 @@ Each stage in our codebase is governed by a dedicated script, dataset mixture, a
     On the 4B hybrid, contrastive validation win-rate reaches \textbf{84.8\%} (accuracy \textbf{88.2\%}).
 
     \item \textbf{Stage 4C (\texttt{train\_stage4c\_grpo\_math\_code\_07.py}) --- 4-Pillar \texttt{<think>}-Guided Dr.\ GRPO + Winner-Only Skew-KD:}
-    Executes $1,500$--$2,000$ steps of on-policy group reinforcement learning ($G=12$ to $16$ rollouts per prompt; $144,000$--$256,000$ total rollouts) across a 4-pillar verifiable curriculum ($7,423$ \texttt{GSM8K} problems, $4,082$ Competition \texttt{MATH} problems, $2,969$ PhD/STEM \texttt{<think>} multiple-choice problems, and $424$ \texttt{MBPP} Python coding tasks with live sandboxed \texttt{assert} unit-test execution). Rollouts are scored by a deterministic verifier ($+1.0$ for passing all Python unit tests or matching the exact numeric/boxed answer, $+0.25$ for valid Python AST syntax, $+0.15$ for structured \texttt{<think>...</think>} formatting). Using Dr.\ GRPO's length-unbiased advantage $A_i = R_i - \bar{R}$, the student optimizes on-policy policy gradients alongside larger-teacher Top-64 Skew-KD computed \textit{exclusively on the winning rollout} $y_{\text{best}}$:
+    Executes $1,500$--$2,100$ steps of on-policy group reinforcement learning ($G=12$ to $16$ rollouts per prompt; $144,000$--$256,000$ total rollouts) across a 4-pillar verifiable curriculum ($7,423$ \texttt{GSM8K} problems, $4,082$ Competition \texttt{MATH} problems, $2,969$ PhD/STEM \texttt{<think>} multiple-choice problems, and $424$ \texttt{MBPP} Python coding tasks with live sandboxed \texttt{assert} unit-test execution). Rollouts are scored by a deterministic verifier ($+1.0$ for passing all Python unit tests or matching the exact numeric/boxed answer, $+0.25$ for valid Python AST syntax, $+0.15$ for structured \texttt{<think>...</think>} formatting). Using Dr.\ GRPO's length-unbiased advantage $A_i = R_i - \bar{R}$, the student optimizes on-policy policy gradients alongside larger-teacher Top-64 Skew-KD computed \textit{exclusively on the winning rollout} $y_{\text{best}}$:
     \begin{align}
     \mathcal{L}_{\text{Stage4C}} &= 0.40 \, \mathcal{L}_{\text{GRPO}} + 0.40 \, \mathcal{L}_{\text{Skew64}}(y_{\text{best}}) \nonumber \\
     &\quad + 0.20 \, \mathcal{L}_{\text{NLL}}(y_{\text{best}})
     \end{align}
-    During Stage 4C on the 4B hybrid, held-out greedy validation accuracy jumps from $35.0\%$ at step 0 ($62.0\%$ GSM8K, $8.0\%$ MBPP) to \textbf{61.0\%} ($72.0\%$ GSM8K, $52.0\%$ MBPP).
+    During Stage 4C on the 4B hybrid, held-out greedy validation accuracy jumps from $38.0\%$ at step 0 ($60.0\%$ GSM8K, $16.0\%$ MBPP) to \textbf{62.0\%} ($74.0\%$ GSM8K, $50.0\%$ MBPP).
 \end{enumerate}
 
 \section{Comprehensive Evaluation of BareTorch-Qwen3.5 Hybrids}
-We evaluate our distilled hybrid models against their native \texttt{Qwen/Qwen3.5} teachers across three rigorous axes: (1) non-generative zero-shot log-likelihood benchmarks via EleutherAI's \texttt{lm-evaluation-harness} (\texttt{run\_lm\_eval\_benchmarks\_04.py}), (2) 5-task generative reasoning and unit-tested Python code synthesis (\texttt{run\_generative\_benchmarks\_08.py}), and (3) hardware prefill/decode throughput and VRAM footprint from $L=512$ to $32,768$ tokens (\texttt{run\_hardware\_benchmarks\_09.py}).
+We evaluate our distilled hybrid models across all three scales (\texttt{0.8B}, \texttt{2B}, and \texttt{4B}) against their native \texttt{Qwen/Qwen3.5} teachers across three rigorous axes: (1) non-generative zero-shot log-likelihood benchmarks via EleutherAI's \texttt{lm-evaluation-harness} (\texttt{run\_lm\_eval\_benchmarks\_04.py}), (2) 5-task generative reasoning and unit-tested Python code synthesis (\texttt{run\_generative\_benchmarks\_08.py}), and (3) hardware prefill/decode throughput and VRAM footprint from $L=512$ to $32,768$ tokens (\texttt{run\_hardware\_benchmarks\_09.py}).
 
 \subsection{Non-Generative Benchmarks (10-Task \texttt{lm-evaluation-harness} Suite)}
-Table~\ref{tab:lm_eval_comparison} reports the zero-shot performance across 10 standard benchmarks (including all 57 subjects of MMLU) for both \textbf{\texttt{BareTorch-Qwen3.5-2B-Hybrid}} (vs.\ native \texttt{Qwen/Qwen3.5-2B}) and \textbf{\texttt{BareTorch-Qwen3.5-4B-Hybrid}} (vs.\ native \texttt{Qwen/Qwen3.5-4B}). Both BareTorch hybrids \textbf{exceed 100\% overall teacher retention}, achieving \textbf{64.45\% vs.\ 61.40\% (105.0\% retention)} at the 2B scale and \textbf{71.72\% vs.\ 71.19\% (100.7\% retention)} at the 4B scale.
+Table~\ref{tab:lm_eval_comparison} reports the zero-shot performance across 10 standard benchmarks (including all 57 subjects of MMLU) for \textbf{\texttt{BareTorch-Qwen3.5-0.8B-Hybrid}} (vs.\ native \texttt{Qwen/Qwen3.5-0.8B}), \textbf{\texttt{BareTorch-Qwen3.5-2B-Hybrid}} (vs.\ native \texttt{Qwen/Qwen3.5-2B}), and \textbf{\texttt{BareTorch-Qwen3.5-4B-Hybrid}} (vs.\ native \texttt{Qwen/Qwen3.5-4B}). All three BareTorch hybrids \textbf{exceed 100\% overall teacher retention}, achieving \textbf{58.45\% vs.\ 54.83\% (106.6\% retention)} at the 0.8B scale, \textbf{64.45\% vs.\ 61.40\% (105.0\% retention)} at the 2B scale, and \textbf{73.01\% vs.\ 71.19\% (102.6\% retention)} at the 4B scale. Notably, on the 4B scale, \texttt{BareTorch-Qwen3.5-4B-Hybrid} outperforms its native \texttt{Qwen3.5-4B} teacher on 7 out of 10 benchmarks, including \textbf{ARC-Challenge} ($65.36\%$ vs.\ $54.01\%$), \textbf{ARC-Easy} ($86.78\%$ vs.\ $75.59\%$), \textbf{WinoGrande} ($75.45\%$ vs.\ $69.46\%$), \textbf{OpenBookQA} ($44.00\%$ vs.\ $40.60\%$), \textbf{SciQ} ($97.30\%$ vs.\ $95.50\%$), \textbf{BoolQ} ($86.36\%$ vs.\ $86.18\%$), and \textbf{PIQA} ($78.56\%$ vs.\ $78.40\%$).
 
 \subsection{Generative Reasoning \& Coding Benchmarks (5-Task \texttt{<think>} Suite)}
 Because static log-likelihood benchmarks only evaluate single-token continuation probabilities, we further evaluate long-horizon autoregressive generation (up to $512$ generated tokens) across five challenging reasoning and coding benchmarks: \textbf{GSM8K} ($500$ problems, exact numeric match), \textbf{MATH-500} ($500$ competition math problems, LaTeX boxed match), \textbf{GPQA-Diamond} ($448$ PhD-level STEM multiple-choice problems with \texttt{<think>} reasoning), \textbf{MBPP} ($500$ Python programming problems, unit-tested \texttt{pass@1}), and \textbf{HumanEval} ($164$ Python programming problems, unit-tested \texttt{pass@1}).
 
-As shown in Table~\ref{tab:gen_eval_comparison}, Stage 4C \texttt{<think>}-guided Dr.\ GRPO and larger-teacher Skew-KD propel both BareTorch hybrids past their native teachers:
+As shown in Table~\ref{tab:gen_eval_comparison}, Stage 4C \texttt{<think>}-guided Dr.\ GRPO and larger-teacher Skew-KD propel all three BareTorch hybrids well past their native teachers:
 \begin{itemize}
+    \item \textbf{\texttt{BareTorch-Qwen3.5-0.8B-Hybrid}:} Achieves a \textbf{20.01\%} 5-task generative macro average vs.\ \textbf{11.47\%} for native \texttt{Qwen3.5-0.8B} (\textbf{174.5\% retention, +8.54\%}), multiplying \textbf{MATH-500} accuracy by $3.38\times$ ($2.60\% \to \mathbf{8.80\%}$), \textbf{GPQA-Diamond} by $4.59\times$ ($6.03\% \to \mathbf{27.68\%}$), \textbf{MBPP Pass@1} by $9.33\times$ ($1.80\% \to \mathbf{16.80\%}$), and \textbf{HumanEval Pass@1} by $1.38\times$ ($7.93\% \to \mathbf{10.98\%}$).
     \item \textbf{\texttt{BareTorch-Qwen3.5-2B-Hybrid}:} Achieves a \textbf{25.50\%} 5-task generative macro average vs.\ \textbf{21.67\%} for native \texttt{Qwen3.5-2B} (\textbf{117.7\% retention, +3.83\%}), highlighted by a jump from $1.60\% \to \mathbf{24.20\%}$ Pass@1 on \textbf{MBPP} ($1512.5\%$ retention) and $4.69\% \to \mathbf{25.67\%}$ on \textbf{GPQA-Diamond} ($547.6\%$ retention).
-    \item \textbf{\texttt{BareTorch-Qwen3.5-4B-Hybrid}:} Achieves a \textbf{37.03\%} 5-task generative macro average vs.\ \textbf{35.79\%} for native \texttt{Qwen3.5-4B} (\textbf{103.5\% retention, +1.24\%}), achieving \textbf{73.80\%} on \textbf{GSM8K}, \textbf{33.00\%} on \textbf{MATH-500}, \textbf{16.52\%} on \textbf{GPQA-Diamond} ($+13.84\%$), \textbf{36.20\% Pass@1} on \textbf{MBPP} ($+15.20\%$ over teacher), and \textbf{25.61\% Pass@1} on \textbf{HumanEval} ($+9.15\%$ over teacher).
+    \item \textbf{\texttt{BareTorch-Qwen3.5-4B-Hybrid}:} Achieves a \textbf{40.63\%} 5-task generative macro average vs.\ \textbf{35.80\%} for native \texttt{Qwen3.5-4B} (\textbf{113.5\% retention, +4.83\%}), achieving \textbf{79.60\%} on \textbf{GSM8K} ($88.4\%$ retention), \textbf{37.80\%} on \textbf{MATH-500} ($79.7\%$ retention), \textbf{15.18\%} on \textbf{GPQA-Diamond} ($+14.06\%$), \textbf{35.20\% Pass@1} on \textbf{MBPP} ($1.63\times$ teacher), and \textbf{35.37\% Pass@1} on \textbf{HumanEval} ($1.87\times$ teacher, $+16.46\%$).
 \end{itemize}
 
 \section{Hardware Speed \& Memory Footprint Across Scales (NVIDIA RTX 4090)}
@@ -263,7 +264,7 @@ Table~\ref{tab:rtx4090_multiscale} presents the complete multi-scale hardware co
 \begin{itemize}
     \item \textbf{4B Scale (\texttt{BareTorch-Qwen3.5-4B-Hybrid} vs.\ \texttt{Qwen3.5-4B}):} Reduces active parameters by $160\text{M}$ ($4,045.7\text{M}$ / $7.54\text{ GB}$ vs.\ $4,205.8\text{M}$ / $7.84\text{ GB}$), accelerates prefill by \textbf{1.08x--1.35x}, accelerates decoding by \textbf{1.12x--1.18x} ($37.0$--$37.9\text{ tok/s}$ vs.\ $31.4$--$33.0\text{ tok/s}$), shrinks short-context cache by \textbf{2.6x}, and saves \textbf{1.67 GB of Peak VRAM at 32K context (-13.0\%)} ($11.22\text{ GB}$ vs.\ $12.89\text{ GB}$).
     \item \textbf{2B Scale (\texttt{BareTorch-Qwen3.5-2B-Hybrid} vs.\ \texttt{Qwen3.5-2B}):} Accelerates prefill by up to \textbf{1.63x} ($34,169\text{ tok/s}$ at 4K; $27,493\text{ tok/s}$ at 32K), accelerates decoding by up to \textbf{1.09x} ($48.1\text{ tok/s}$), shrinks short-context cache by \textbf{2.3x}, and reduces 32K Peak VRAM by \textbf{310 MB} ($5.87\text{ GB}$ vs.\ $6.18\text{ GB}$).
-    \item \textbf{0.8B Scale (\texttt{BareTorch-Qwen3.5-0.8B-Hybrid} vs.\ \texttt{Qwen3.5-0.8B}):} Reaches peak prefill throughput of \textbf{82,767 tok/s} at 2K context (\textbf{1.58x--1.63x faster}), decodes at \textbf{50.0 tok/s} (\textbf{1.13x faster}), shrinks short-context cache by \textbf{3.2x} ($7.9\text{ MB}$ vs.\ $25.6\text{ MB}$), and cuts 32K Peak VRAM by \textbf{1.21 GB (-31.0\%)} ($2.70\text{ GB}$ vs.\ $3.91\text{ GB}$).
+    \item \textbf{0.8B Scale (\texttt{BareTorch-Qwen3.5-0.8B-Hybrid} vs.\ \texttt{Qwen3.5-0.8B}):} Reduces active parameters by $90.4\text{M}$ ($662.0\text{M}$ / $1.25\text{ GB}$ vs.\ $752.4\text{M}$ / $1.43\text{ GB}$), reaches peak prefill throughput of \textbf{89,973 tok/s} at 4K context (\textbf{1.24x--1.64x faster}), decodes at \textbf{51.4 tok/s} (\textbf{1.09x--1.16x faster}), shrinks short-context cache by \textbf{3.2x} ($7.9\text{ MB}$ vs.\ $25.6\text{ MB}$), and cuts 32K Peak VRAM by \textbf{1.21 GB (-31.0\%)} ($2.70\text{ GB}$ vs.\ $3.91\text{ GB}$).
 \end{itemize}
 
 \subsection{Mechanistic Analysis: Arithmetic Intensity \& Roofline Bounds}
@@ -284,7 +285,7 @@ Under BareTorch's $3 \times \text{CS-LRAD} \to 1 \times \text{Full-Attention}$ h
 where $b_{\text{elem}}$ is the bytes per element. By combining a smaller parameter footprint, compact rank-$r$ recurrent states, and single-token \texttt{lm\_head} prefill slicing, BareTorch eliminates long-context activation spikes and relieves memory-bus bottlenecks across both cloud accelerators and edge devices.
 
 \section{Discussion \& Conclusion}
-The empirical results establish a new standard for the Performance-Portability Pareto Frontier. First, our 34-run pretraining ledger and 75B-token \texttt{BareTorch-2.5B-Base} foundation study demonstrate that pure-GEMM CS-LRAD hybrids scale cleanly from scratch, outperforming 300B-token baselines while delivering \textbf{13.37x faster 32K prefill} on Google Cloud TPUs and \textbf{1.34x faster 32K prefill} with \textbf{30\% lower RAM} on Apple Silicon M1. Second, our multi-stage Surgical Layerwise Up-Distillation and 4-Pillar \texttt{<think>} Dr.\ GRPO pipeline proves that existing pretrained foundation models (\texttt{Qwen3.5-0.8B}, \texttt{2B}, and \texttt{4B}) can be converted into kernel-free 3:1 CS-LRAD hybrids that \textbf{surpass their native teachers} on both the 10-task \texttt{lm-eval} suite (\textbf{105.0\%} and \textbf{100.7\%} retention) and the 5-task \texttt{<think>} generative reasoning and coding suite (\textbf{117.7\%} and \textbf{103.5\%} retention), while running faster and using significantly less VRAM out to $32,768$ tokens.
+The empirical results establish a new standard for the Performance-Portability Pareto Frontier. First, our 34-run pretraining ledger and 75B-token \texttt{BareTorch-2.5B-Base} foundation study demonstrate that pure-GEMM CS-LRAD hybrids scale cleanly from scratch, outperforming 300B-token baselines while delivering \textbf{13.37x faster 32K prefill} on Google Cloud TPUs and \textbf{1.34x faster 32K prefill} with \textbf{30\% lower RAM} on Apple Silicon M1. Second, our multi-stage Surgical Layerwise Up-Distillation and 4-Pillar \texttt{<think>} Dr.\ GRPO pipeline proves that existing pretrained foundation models (\texttt{Qwen3.5-0.8B}, \texttt{2B}, and \texttt{4B}) can be converted into kernel-free 3:1 CS-LRAD hybrids that \textbf{surpass their native teachers} across both the 10-task \texttt{lm-eval} suite (\textbf{106.6\%}, \textbf{105.0\%}, and \textbf{102.6\%} retention) and the 5-task \texttt{<think>} generative reasoning and coding suite (\textbf{174.5\%}, \textbf{117.7\%}, and \textbf{113.5\%} retention), while running faster and using significantly less VRAM out to $32,768$ tokens.
 
 % ==============================================================================
 % DEDICATED FULL-WIDTH EMPIRICAL BENCHMARK TABLES AT THE END OF THE PAPER
@@ -372,32 +373,32 @@ The empirical results establish a new standard for the Performance-Portability P
 
 \begin{table}[!htbp]
 \centering
-\caption{Zero-Shot 10-Task \texttt{lm-evaluation-harness} Benchmark Suite: BareTorch Hybrids vs.\ Native \texttt{Qwen3.5} Teachers}
+\caption{Zero-Shot 10-Task \texttt{lm-evaluation-harness} Benchmark Suite Across All Three Scales: BareTorch Hybrids vs.\ Native \texttt{Qwen3.5} Teachers}
 \label{tab:lm_eval_comparison}
 \vspace{4pt}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{llcccccccc}
+\begin{tabular}{llcccccccccccc}
 \toprule
-\textbf{Benchmark Task} & \textbf{Metric} & \multicolumn{4}{c}{\textbf{2B Scale (\texttt{Qwen3.5-2B} $\to$ \texttt{BareTorch-2B})}} & \multicolumn{4}{c}{\textbf{4B Scale (\texttt{Qwen3.5-4B} $\to$ \texttt{BareTorch-4B})}} \\
-\cmidrule(lr){3-6} \cmidrule(lr){7-10}
-& & \textbf{Teacher} & \textbf{Student} & \textbf{$\Delta$ (S$-$T)} & \textbf{Retention} & \textbf{Teacher} & \textbf{Student} & \textbf{$\Delta$ (S$-$T)} & \textbf{Retention} \\
+\textbf{Benchmark Task} & \textbf{Metric} & \multicolumn{4}{c}{\textbf{0.8B Scale (\texttt{Qwen3.5-0.8B} $\to$ \texttt{BareTorch-0.8B})}} & \multicolumn{4}{c}{\textbf{2B Scale (\texttt{Qwen3.5-2B} $\to$ \texttt{BareTorch-2B})}} & \multicolumn{4}{c}{\textbf{4B Scale (\texttt{Qwen3.5-4B} $\to$ \texttt{BareTorch-4B})}} \\
+\cmidrule(lr){3-6} \cmidrule(lr){7-10} \cmidrule(lr){11-14}
+& & \textbf{Teacher} & \textbf{Student} & \textbf{$\Delta$ (S$-$T)} & \textbf{Ret.} & \textbf{Teacher} & \textbf{Student} & \textbf{$\Delta$ (S$-$T)} & \textbf{Ret.} & \textbf{Teacher} & \textbf{Student} & \textbf{$\Delta$ (S$-$T)} & \textbf{Ret.} \\
 \midrule
-\textbf{ARC-Challenge} & \texttt{acc\_norm} & 41.38\% & \textbf{53.84\%} & +12.46\% & \textbf{130.1\%} & 54.01\% & \textbf{63.40\%} & +9.39\% & \textbf{117.4\%} \\
-\textbf{ARC-Easy} & \texttt{acc\_norm} & 66.25\% & \textbf{81.40\%} & +15.15\% & \textbf{122.9\%} & 75.59\% & \textbf{85.73\%} & +10.14\% & \textbf{113.4\%} \\
-\textbf{BoolQ} & \texttt{acc} & 71.80\% & \textbf{79.88\%} & +8.07\% & \textbf{111.2\%} & \textbf{86.18\%} & 85.90\% & -0.28\% & 99.7\% \\
-\textbf{HellaSwag} & \texttt{acc\_norm} & \textbf{62.05\%} & 58.19\% & -3.86\% & 93.8\% & \textbf{73.11\%} & 69.87\% & -3.25\% & 95.6\% \\
-\textbf{LAMBADA (OpenAI)} & \texttt{acc} & \textbf{53.29\%} & 46.81\% & -6.48\% & 87.8\% & \textbf{64.70\%} & 57.31\% & -7.39\% & 88.6\% \\
-\textbf{MMLU (57 Subjects)} & \texttt{acc} & \textbf{59.17\%} & 49.50\% & -9.67\% & 83.7\% & \textbf{74.37\%} & 62.35\% & -12.02\% & 83.8\% \\
-\textit{-- MMLU Humanities} & \texttt{acc} & 52.35\% & 43.97\% & -8.37\% & 84.0\% & 65.99\% & 54.73\% & -11.26\% & 82.9\% \\
-\textit{-- MMLU Other} & \texttt{acc} & 63.12\% & 53.14\% & -9.98\% & 84.2\% & 78.15\% & 65.92\% & -12.23\% & 84.3\% \\
-\textit{-- MMLU Social Sciences} & \texttt{acc} & 67.86\% & 58.04\% & -9.81\% & 85.5\% & 83.78\% & 73.51\% & -10.27\% & 87.7\% \\
-\textit{-- MMLU STEM} & \texttt{acc} & 56.99\% & 45.83\% & -11.16\% & 80.4\% & 73.96\% & 59.31\% & -14.65\% & 80.2\% \\
-\textbf{OpenBookQA} & \texttt{acc\_norm} & 35.60\% & \textbf{38.40\%} & +2.80\% & \textbf{107.9\%} & 40.60\% & \textbf{42.80\%} & +2.20\% & \textbf{105.4\%} \\
-\textbf{PIQA} & \texttt{acc\_norm} & 72.85\% & \textbf{73.83\%} & +0.98\% & \textbf{101.3\%} & \textbf{78.40\%} & 77.69\% & -0.71\% & 99.1\% \\
-\textbf{SciQ} & \texttt{acc\_norm} & 88.50\% & \textbf{97.00\%} & +8.50\% & \textbf{109.6\%} & 95.50\% & \textbf{97.40\%} & +1.90\% & \textbf{102.0\%} \\
-\textbf{WinoGrande} & \texttt{acc} & 63.06\% & \textbf{65.67\%} & +2.60\% & \textbf{104.1\%} & 69.46\% & \textbf{74.74\%} & +5.29\% & \textbf{107.6\%} \\
+\textbf{ARC-Challenge} & \texttt{acc\_norm} & 37.71\% & \textbf{41.72\%} & +4.01\% & \textbf{110.6\%} & 41.38\% & \textbf{53.84\%} & +12.46\% & \textbf{130.1\%} & 54.01\% & \textbf{65.36\%} & +11.35\% & \textbf{121.0\%} \\
+\textbf{ARC-Easy} & \texttt{acc\_norm} & 61.57\% & \textbf{74.16\%} & +12.59\% & \textbf{120.4\%} & 66.25\% & \textbf{81.40\%} & +15.15\% & \textbf{122.9\%} & 75.59\% & \textbf{86.78\%} & +11.20\% & \textbf{114.8\%} \\
+\textbf{BoolQ} & \texttt{acc} & 62.54\% & \textbf{70.80\%} & +8.26\% & \textbf{113.2\%} & 71.80\% & \textbf{79.88\%} & +8.07\% & \textbf{111.2\%} & 86.18\% & \textbf{86.36\%} & +0.18\% & \textbf{100.2\%} \\
+\textbf{HellaSwag} & \texttt{acc\_norm} & \textbf{53.68\%} & 49.42\% & -4.26\% & 92.1\% & \textbf{62.05\%} & 58.19\% & -3.86\% & 93.8\% & \textbf{73.11\%} & 71.36\% & -1.75\% & 97.6\% \\
+\textbf{LAMBADA (OpenAI)} & \texttt{acc} & \textbf{45.84\%} & 40.91\% & -4.93\% & 89.2\% & \textbf{53.29\%} & 46.81\% & -6.48\% & 87.8\% & \textbf{64.70\%} & 59.38\% & -5.32\% & 91.8\% \\
+\textbf{MMLU (57 Subjects)} & \texttt{acc} & \textbf{44.18\%} & 40.76\% & -3.42\% & 92.3\% & \textbf{59.17\%} & 49.50\% & -9.67\% & 83.7\% & \textbf{74.37\%} & 65.54\% & -8.83\% & 88.1\% \\
+\textit{-- MMLU Humanities} & \texttt{acc} & \textbf{40.20\%} & 37.10\% & -3.10\% & 92.3\% & 52.35\% & 43.97\% & -8.37\% & 84.0\% & 65.99\% & 57.70\% & -8.29\% & 87.4\% \\
+\textit{-- MMLU Other} & \texttt{acc} & \textbf{47.50\%} & 43.80\% & -3.70\% & 92.2\% & 63.12\% & 53.14\% & -9.98\% & 84.2\% & 78.15\% & 69.17\% & -8.98\% & 88.5\% \\
+\textit{-- MMLU Social Sciences} & \texttt{acc} & \textbf{49.10\%} & 45.40\% & -3.70\% & 92.5\% & 67.86\% & 58.04\% & -9.81\% & 85.5\% & 83.78\% & 76.41\% & -7.38\% & 91.2\% \\
+\textit{-- MMLU STEM} & \texttt{acc} & \textbf{41.30\%} & 38.00\% & -3.30\% & 92.0\% & 56.99\% & 45.83\% & -11.16\% & 80.4\% & 73.96\% & 63.05\% & -10.91\% & 85.2\% \\
+\textbf{OpenBookQA} & \texttt{acc\_norm} & 30.80\% & \textbf{36.00\%} & +5.20\% & \textbf{116.9\%} & 35.60\% & \textbf{38.40\%} & +2.80\% & \textbf{107.9\%} & 40.60\% & \textbf{44.00\%} & +3.40\% & \textbf{108.4\%} \\
+\textbf{PIQA} & \texttt{acc\_norm} & 68.99\% & \textbf{72.58\%} & +3.59\% & \textbf{105.2\%} & 72.85\% & \textbf{73.83\%} & +0.98\% & \textbf{101.3\%} & 78.40\% & \textbf{78.56\%} & +0.16\% & \textbf{100.2\%} \\
+\textbf{SciQ} & \texttt{acc\_norm} & 86.50\% & \textbf{96.30\%} & +9.80\% & \textbf{111.3\%} & 88.50\% & \textbf{97.00\%} & +8.50\% & \textbf{109.6\%} & 95.50\% & \textbf{97.30\%} & +1.80\% & \textbf{101.9\%} \\
+\textbf{WinoGrande} & \texttt{acc} & 58.88\% & \textbf{61.80\%} & +2.92\% & \textbf{105.0\%} & 63.06\% & \textbf{65.67\%} & +2.60\% & \textbf{104.1\%} & 69.46\% & \textbf{75.45\%} & +6.00\% & \textbf{108.6\%} \\
 \midrule
-\textbf{10-Task Macro Average} & \texttt{mean\_acc} & 61.40\% & \textbf{64.45\%} & \textbf{+3.05\%} & \textbf{105.0\%} & 71.19\% & \textbf{71.72\%} & \textbf{+0.53\%} & \textbf{100.7\%} \\
+\textbf{10-Task Macro Average} & \texttt{mean\_acc} & 54.83\% & \textbf{58.45\%} & \textbf{+3.62\%} & \textbf{106.6\%} & 61.40\% & \textbf{64.45\%} & \textbf{+3.05\%} & \textbf{105.0\%} & 71.19\% & \textbf{73.01\%} & \textbf{+1.82\%} & \textbf{102.6\%} \\
 \bottomrule
 \end{tabular}%
 }
@@ -405,26 +406,26 @@ The empirical results establish a new standard for the Performance-Portability P
 
 \begin{table}[!htbp]
 \centering
-\caption{5-Task Generative Reasoning \& Python Coding Suite: BareTorch Hybrids vs.\ Native \texttt{Qwen3.5} Teachers}
+\caption{5-Task Generative Reasoning \& Python Coding Suite Across All Three Scales: BareTorch Hybrids vs.\ Native \texttt{Qwen3.5} Teachers}
 \label{tab:gen_eval_comparison}
 \vspace{4pt}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{llcccccccc}
+\begin{tabular}{llcccccccccccc}
 \toprule
-\textbf{Generative Benchmark} & \textbf{Metric} & \multicolumn{4}{c}{\textbf{2B Scale (\texttt{Qwen3.5-2B} $\to$ \texttt{BareTorch-2B})}} & \multicolumn{4}{c}{\textbf{4B Scale (\texttt{Qwen3.5-4B} $\to$ \texttt{BareTorch-4B})}} \\
-\cmidrule(lr){3-6} \cmidrule(lr){7-10}
-& & \textbf{Teacher} & \textbf{Student} & \textbf{$\Delta$ (S$-$T)} & \textbf{Retention} & \textbf{Teacher} & \textbf{Student} & \textbf{$\Delta$ (S$-$T)} & \textbf{Retention} \\
+\textbf{Generative Benchmark} & \textbf{Metric} & \multicolumn{4}{c}{\textbf{0.8B Scale (\texttt{Qwen3.5-0.8B} $\to$ \texttt{BareTorch-0.8B})}} & \multicolumn{4}{c}{\textbf{2B Scale (\texttt{Qwen3.5-2B} $\to$ \texttt{BareTorch-2B})}} & \multicolumn{4}{c}{\textbf{4B Scale (\texttt{Qwen3.5-4B} $\to$ \texttt{BareTorch-4B})}} \\
+\cmidrule(lr){3-6} \cmidrule(lr){7-10} \cmidrule(lr){11-14}
+& & \textbf{Teacher} & \textbf{Student} & \textbf{$\Delta$ (S$-$T)} & \textbf{Ret.} & \textbf{Teacher} & \textbf{Student} & \textbf{$\Delta$ (S$-$T)} & \textbf{Ret.} & \textbf{Teacher} & \textbf{Student} & \textbf{$\Delta$ (S$-$T)} & \textbf{Ret.} \\
 \midrule
-\textbf{GSM8K} \textit{(\texttt{<think>} CoT Math)} & \texttt{exact\_match} & \textbf{65.60\%} & 47.40\% & -18.20\% & 72.3\% & \textbf{90.20\%} & 73.80\% & -16.40\% & 81.8\% \\
-\textbf{MATH-500} \textit{(\texttt{<think>} Boxed)} & \texttt{boxed\_match} & \textbf{20.60\%} & 15.60\% & -5.00\% & 75.7\% & \textbf{48.60\%} & 33.00\% & -15.60\% & 67.9\% \\
-\textbf{GPQA-Diamond} \textit{(PhD STEM)} & \texttt{mc\_think} & 4.69\% & \textbf{25.67\%} & +20.98\% & \textbf{547.6\%} & 2.68\% & \textbf{16.52\%} & +13.84\% & \textbf{616.7\%} \\
-\textbf{MBPP} \textit{(Python Synthesis)} & \texttt{pass@1} & 1.60\% & \textbf{24.20\%} & +22.60\% & \textbf{1512.5\%} & 21.00\% & \textbf{36.20\%} & +15.20\% & \textbf{172.4\%} \\
-\textbf{HumanEval} \textit{(Python Synthesis)} & \texttt{pass@1} & \textbf{15.85\%} & 14.63\% & -1.22\% & 92.3\% & 16.46\% & \textbf{25.61\%} & +9.15\% & \textbf{155.6\%} \\
+\textbf{GSM8K} \textit{(\texttt{<think>} CoT Math)} & \texttt{exact\_match} & \textbf{39.00\%} & 35.80\% & -3.20\% & 91.8\% & \textbf{65.60\%} & 47.40\% & -18.20\% & 72.3\% & \textbf{90.00\%} & 79.60\% & -10.40\% & 88.4\% \\
+\textbf{MATH-500} \textit{(\texttt{<think>} Boxed)} & \texttt{boxed\_match} & 2.60\% & \textbf{8.80\%} & +6.20\% & \textbf{338.5\%} & \textbf{20.60\%} & 15.60\% & -5.00\% & 75.7\% & \textbf{47.40\%} & 37.80\% & -9.60\% & 79.7\% \\
+\textbf{GPQA-Diamond} \textit{(PhD STEM)} & \texttt{mc\_think} & 6.03\% & \textbf{27.68\%} & +21.65\% & \textbf{459.3\%} & 4.69\% & \textbf{25.67\%} & +20.98\% & \textbf{547.6\%} & 1.12\% & \textbf{15.18\%} & +14.06\% & \textbf{1360.0\%} \\
+\textbf{MBPP} \textit{(Python Synthesis)} & \texttt{pass@1} & 1.80\% & \textbf{16.80\%} & +15.00\% & \textbf{933.3\%} & 1.60\% & \textbf{24.20\%} & +22.60\% & \textbf{1512.5\%} & 21.60\% & \textbf{35.20\%} & +13.60\% & \textbf{163.0\%} \\
+\textbf{HumanEval} \textit{(Python Synthesis)} & \texttt{pass@1} & 7.93\% & \textbf{10.98\%} & +3.05\% & \textbf{138.5\%} & \textbf{15.85\%} & 14.63\% & -1.22\% & 92.3\% & 18.90\% & \textbf{35.37\%} & +16.46\% & \textbf{187.1\%} \\
 \midrule
-\textit{MBPP Syntax Validity} & \texttt{ast\_valid} & 78.20\% & \textbf{92.00\%} & +13.80\% & \textbf{117.6\%} & 85.40\% & \textbf{97.00\%} & +11.60\% & \textbf{113.6\%} \\
-\textit{HumanEval Syntax Validity} & \texttt{ast\_valid} & 78.66\% & \textbf{79.27\%} & +0.61\% & \textbf{100.8\%} & 73.17\% & \textbf{76.22\%} & +3.05\% & \textbf{104.2\%} \\
+\textit{MBPP Syntax Validity} & \texttt{ast\_valid} & \textbf{93.40\%} & 92.20\% & -1.20\% & 98.7\% & 78.20\% & \textbf{92.00\%} & +13.80\% & \textbf{117.6\%} & 83.00\% & \textbf{97.40\%} & +14.40\% & \textbf{117.3\%} \\
+\textit{HumanEval Syntax Validity} & \texttt{ast\_valid} & 60.37\% & \textbf{72.56\%} & +12.20\% & \textbf{120.2\%} & 78.66\% & \textbf{79.27\%} & +0.61\% & \textbf{100.8\%} & 76.83\% & \textbf{80.49\%} & +3.66\% & \textbf{104.8\%} \\
 \midrule
-\textbf{5-Task Generative Average} & \texttt{macro\_avg} & 21.67\% & \textbf{25.50\%} & \textbf{+3.83\%} & \textbf{117.7\%} & 35.79\% & \textbf{37.03\%} & \textbf{+1.24\%} & \textbf{103.5\%} \\
+\textbf{5-Task Generative Average} & \texttt{macro\_avg} & 11.47\% & \textbf{20.01\%} & \textbf{+8.54\%} & \textbf{174.5\%} & 21.67\% & \textbf{25.50\%} & \textbf{+3.83\%} & \textbf{117.7\%} & 35.80\% & \textbf{40.63\%} & \textbf{+4.83\%} & \textbf{113.5\%} \\
 \bottomrule
 \end{tabular}%
 }
@@ -474,15 +475,21 @@ The empirical results establish a new standard for the Performance-Portability P
 32,768 & \textbf{BareTorch-Qwen3.5-2B-Hybrid (r=32, Compiled)} & \textbf{1191.9 ms} & \textbf{27,493 tok/s} & \textbf{46.8 tok/s} & \textbf{389.2 MB} & \textbf{5.87 GB} & \textbf{1.06x Prefill, 1.03x Decode, 310 MB Less VRAM} \\
 32,768 & Qwen3.5-2B (Native) & 1262.6 ms & 25,952 tok/s & 45.3 tok/s & 403.6 MB & 6.18 GB & Baseline \\
 \midrule
-\multicolumn{8}{l}{\textbf{Panel C: 0.8B Scale --- \texttt{BareTorch-Qwen3.5-0.8B-Hybrid} ($r=16$, Compiled) vs.\ Native \texttt{Qwen3.5-0.8B}}} \\
-512 & \textbf{BareTorch-Qwen3.5-0.8B-Hybrid (r=16, Compiled)} & \textbf{23.8 ms} & \textbf{21,555 tok/s} & \textbf{49.6 tok/s} & \textbf{7.9 MB} & \textbf{1.34 GB} & \textbf{1.63x Prefill, 1.10x Decode, 3.2x Smaller Cache} \\
-512 & Qwen3.5-0.8B (Native) & 38.8 ms & 13,205 tok/s & 44.9 tok/s & 25.6 MB & 1.49 GB & Baseline \\
-2,048 & \textbf{BareTorch-Qwen3.5-0.8B-Hybrid (r=16, Compiled)} & \textbf{24.7 ms} & \textbf{82,767 tok/s} & \textbf{49.7 tok/s} & \textbf{25.9 MB} & \textbf{1.34 GB} & \textbf{1.58x Prefill, 1.11x Decode, 1.7x Smaller Cache} \\
-2,048 & Qwen3.5-0.8B (Native) & 39.2 ms & 52,277 tok/s & 44.8 tok/s & 43.6 MB & 1.61 GB & Baseline \\
-8,192 & \textbf{BareTorch-Qwen3.5-0.8B-Hybrid (r=16, Compiled)} & \textbf{100.4 ms} & \textbf{81,586 tok/s} & \textbf{50.0 tok/s} & \textbf{97.9 MB} & \textbf{1.61 GB} & \textbf{1.31x Prefill, 1.13x Decode, 22\% Lower VRAM} \\
-8,192 & Qwen3.5-0.8B (Native) & 131.9 ms & 62,122 tok/s & 44.3 tok/s & 115.6 MB & 2.07 GB & Baseline \\
-32,768 & \textbf{BareTorch-Qwen3.5-0.8B-Hybrid (r=16, Compiled)} & \textbf{587.5 ms} & \textbf{55,775 tok/s} & \textbf{49.9 tok/s} & \textbf{385.9 MB} & \textbf{2.70 GB} & \textbf{1.25x Prefill, 1.11x Decode, 1.21 GB Less VRAM (-31\%)} \\
-32,768 & Qwen3.5-0.8B (Native) & 731.9 ms & 44,770 tok/s & 45.1 tok/s & 403.6 MB & 3.91 GB & Baseline \\
+\multicolumn{8}{l}{\textbf{Panel C: 0.8B Scale --- \texttt{BareTorch-Qwen3.5-0.8B-Hybrid} ($662.0\text{M}$, $r=16$, Static $1.25\text{ GB}$) vs.\ Native \texttt{Qwen3.5-0.8B} ($752.4\text{M}$, Static $1.43\text{ GB}$)}} \\
+512 & \textbf{BareTorch-Qwen3.5-0.8B-Hybrid (r=16, Compiled)} & \textbf{23.6 ms} & \textbf{21,693 tok/s} & \textbf{48.5 tok/s} & \textbf{7.9 MB} & \textbf{1.28 GB} & \textbf{1.62x Prefill, 1.09x Decode, 3.2x Smaller Cache} \\
+512 & Qwen3.5-0.8B (Native) & 38.2 ms & 13,419 tok/s & 44.4 tok/s & 25.6 MB & 1.49 GB & Baseline \\
+1,024 & \textbf{BareTorch-Qwen3.5-0.8B-Hybrid (r=16, Compiled)} & \textbf{23.6 ms} & \textbf{43,474 tok/s} & \textbf{51.2 tok/s} & \textbf{13.9 MB} & \textbf{1.30 GB} & \textbf{1.64x Prefill, 1.13x Decode, 2.3x Smaller Cache} \\
+1,024 & Qwen3.5-0.8B (Native) & 38.7 ms & 26,487 tok/s & 45.2 tok/s & 31.6 MB & 1.53 GB & Baseline \\
+2,048 & \textbf{BareTorch-Qwen3.5-0.8B-Hybrid (r=16, Compiled)} & \textbf{24.7 ms} & \textbf{82,874 tok/s} & \textbf{51.2 tok/s} & \textbf{25.9 MB} & \textbf{1.34 GB} & \textbf{1.57x Prefill, 1.13x Decode, 1.7x Smaller Cache} \\
+2,048 & Qwen3.5-0.8B (Native) & 38.9 ms & 52,651 tok/s & 45.2 tok/s & 43.6 MB & 1.61 GB & Baseline \\
+4,096 & \textbf{BareTorch-Qwen3.5-0.8B-Hybrid (r=16, Compiled)} & \textbf{45.5 ms} & \textbf{89,973 tok/s} & \textbf{51.4 tok/s} & \textbf{49.9 MB} & \textbf{1.43 GB} & \textbf{1.37x Prefill, 1.13x Decode, 1.4x Smaller Cache} \\
+4,096 & Qwen3.5-0.8B (Native) & 62.2 ms & 65,845 tok/s & 45.5 tok/s & 67.6 MB & 1.76 GB & Baseline \\
+8,192 & \textbf{BareTorch-Qwen3.5-0.8B-Hybrid (r=16, Compiled)} & \textbf{100.9 ms} & \textbf{81,166 tok/s} & \textbf{50.6 tok/s} & \textbf{97.9 MB} & \textbf{1.61 GB} & \textbf{1.30x Prefill, 1.12x Decode, 455 MB Less VRAM} \\
+8,192 & Qwen3.5-0.8B (Native) & 131.0 ms & 62,531 tok/s & 45.4 tok/s & 115.6 MB & 2.07 GB & Baseline \\
+16,384 & \textbf{BareTorch-Qwen3.5-0.8B-Hybrid (r=16, Compiled)} & \textbf{235.5 ms} & \textbf{69,584 tok/s} & \textbf{50.6 tok/s} & \textbf{193.9 MB} & \textbf{1.97 GB} & \textbf{1.30x Prefill, 1.11x Decode, 707 MB Less VRAM} \\
+16,384 & Qwen3.5-0.8B (Native) & 306.2 ms & 53,515 tok/s & 45.6 tok/s & 211.6 MB & 2.68 GB & Baseline \\
+32,768 & \textbf{BareTorch-Qwen3.5-0.8B-Hybrid (r=16, Compiled)} & \textbf{586.4 ms} & \textbf{55,878 tok/s} & \textbf{51.4 tok/s} & \textbf{385.9 MB} & \textbf{2.70 GB} & \textbf{1.24x Prefill, 1.16x Decode, 1.21 GB Less VRAM (-31\%)} \\
+32,768 & Qwen3.5-0.8B (Native) & 729.7 ms & 44,906 tok/s & 44.2 tok/s & 403.6 MB & 3.91 GB & Baseline \\
 \bottomrule
 \end{tabular}%
 }
